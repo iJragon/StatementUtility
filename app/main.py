@@ -9,10 +9,32 @@ Tabs:
   5. Anomalies          (flagged items with cell refs)
   6. Trends             (multi-metric trend comparison)
   7. Chat               (ask questions about the report)
+
+Sidebar (always visible):
+  - File uploader + Analyze button
+  - AI status
+  - Session history with disk persistence + per-entry delete + clear all
+
+Analysis is split into two phases so the UI never appears stuck:
+  Phase 1 (fast)  — parse, ratios, anomalies, trends  → rerun → tabs populate instantly
+  Phase 2 (AI)    — summary + commentary generated below tabs with live streaming preview.
+                    A banner above tabs tells the user what is happening.
+                    After Phase 2 completes another rerun populates the AI tab sections.
 """
 
 import io
+import sys
+import os
+import re
+import hashlib
+import pickle
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
+import pandas as pd
 
 from app.parser.excel_parser import parse_excel
 from app.analysis.ratio_calculator import calculate_ratios
@@ -23,6 +45,109 @@ from app.agents.orchestrator import OrchestratorAgent
 from app.agents.chat_agent import ChatAgent
 from app.config import is_ai_available, MODEL_PROVIDER, OLLAMA_MODEL, ANTHROPIC_MODEL
 
+
+# ── Disk cache helpers ─────────────────────────────────────────────────────────
+CACHE_DIR = Path(__file__).parent.parent / ".statement_cache"
+
+
+def _disk_load_history():
+    entries = []
+    if not CACHE_DIR.exists():
+        return entries
+    for pkl_path in sorted(CACHE_DIR.glob("*.pkl"), key=lambda p: p.stat().st_mtime):
+        try:
+            with open(pkl_path, "rb") as f:
+                entry = pickle.load(f)
+            if isinstance(entry.get("analyzed_at"), str):
+                entry["analyzed_at"] = datetime.fromisoformat(entry["analyzed_at"])
+            entries.append(entry)
+        except Exception:
+            pass
+    return entries
+
+
+def _disk_save_entry(entry: dict):
+    CACHE_DIR.mkdir(exist_ok=True)
+    pkl_path = CACHE_DIR / f"{entry['file_hash']}.pkl"
+    try:
+        with open(pkl_path, "wb") as f:
+            pickle.dump(entry, f)
+    except Exception:
+        pass
+
+
+def _disk_delete_entry(file_hash: str):
+    pkl_path = CACHE_DIR / f"{file_hash}.pkl"
+    try:
+        pkl_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _disk_clear_all():
+    if CACHE_DIR.exists():
+        for pkl_path in CACHE_DIR.glob("*.pkl"):
+            try:
+                pkl_path.unlink()
+            except Exception:
+                pass
+
+
+def _clean_meta(text: str) -> str:
+    """
+    Strip internal system codes from metadata strings before displaying them.
+    Handles patterns like:
+      (.secesml)          - parenthetical codes
+      .secesml            - trailing dot-codes
+      tdg_cfdet           - underscore_identifiers
+    Leaves normal text like 'Accrual', 'Jan 2025 - Dec 2025' untouched.
+    Falls back to the original string if cleaning removes everything.
+    """
+    if not text:
+        return text
+    original = text
+    # Parenthetical codes like (.secesml) or (tdg_cfdet)
+    text = re.sub(r"\s*\([.a-z][a-z0-9_.]{1,30}\)", "", text, flags=re.IGNORECASE)
+    # Trailing dot-codes like .secesml
+    text = re.sub(r"\s*\.[a-z]{2,20}$", "", text.strip(), flags=re.IGNORECASE)
+    # Standalone underscore_words like tdg_cfdet (but not "Jan 2025" or "Accrual")
+    text = re.sub(r"\s*\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b", "", text, flags=re.IGNORECASE)
+    result = text.strip(" ·-./,;")
+    return result if result else original
+
+
+def _safe_md(text: str) -> str:
+    """Escape bare dollar signs so Streamlit/KaTeX doesn't render $value as LaTeX math."""
+    return text.replace("$", r"\$")
+
+
+def _sync_ai_content():
+    """Write current AI session state back into the matching history entry and re-save to disk."""
+    fh = st.session_state.file_hash
+    if not fh:
+        return
+    for entry in st.session_state.analysis_history:
+        if entry["file_hash"] == fh:
+            entry["summary_text"]          = st.session_state.summary_text
+            entry["ratio_commentary"]      = st.session_state.ratio_commentary
+            entry["anomaly_explanations"]  = dict(st.session_state.anomaly_explanations)
+            entry["chat_history"]          = list(st.session_state.chat_history)
+            _disk_save_entry(entry)
+            break
+
+
+def _sync_chat_to_history():
+    """Persist the current chat history to disk after each exchange."""
+    fh = st.session_state.file_hash
+    if not fh:
+        return
+    for entry in st.session_state.analysis_history:
+        if entry["file_hash"] == fh:
+            entry["chat_history"] = list(st.session_state.chat_history)
+            _disk_save_entry(entry)
+            break
+
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Statement Utility",
@@ -31,7 +156,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Session state init ─────────────────────────────────────────────────────────
+ai_ok      = is_ai_available()
+model_name = ANTHROPIC_MODEL if MODEL_PROVIDER == "anthropic" else OLLAMA_MODEL
+
+# ── Session state ──────────────────────────────────────────────────────────────
 for key, default in {
     "stmt": None,
     "ratios": None,
@@ -40,12 +168,27 @@ for key, default in {
     "chat_history": [],
     "chat_agent": None,
     "summary_text": "",
+    "ratio_commentary": "",
+    "anomaly_explanations": {},
+    "file_hash": None,
+    "analysis_history": [],
+    "_disk_history_loaded": False,
+    "ai_pending": False,       # True while Phase 2 (AI) still needs to run
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
+# Load persisted history from disk once per session
+if not st.session_state._disk_history_loaded:
+    existing_hashes = {e["file_hash"] for e in st.session_state.analysis_history}
+    for entry in _disk_load_history():
+        if entry["file_hash"] not in existing_hashes:
+            st.session_state.analysis_history.append(entry)
+            existing_hashes.add(entry["file_hash"])
+    st.session_state._disk_history_loaded = True
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
+
+# ── Sidebar — controls ─────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("Statement Utility")
     st.caption("AI-powered financial statement analysis")
@@ -54,19 +197,24 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload Excel statement (.xlsx)",
         type=["xlsx", "xls"],
-        help="Supports any format — the parser auto-detects structure.",
+        help="Supports any format. Files are identified by content, not filename — "
+             "re-uploading the same file reuses cached results automatically.",
     )
 
-    ai_ok = is_ai_available()
-    model_name = ANTHROPIC_MODEL if MODEL_PROVIDER == "anthropic" else OLLAMA_MODEL
     if ai_ok:
-        st.success(f"AI ready ({model_name})")
+        st.success("AI assistant ready")
     else:
         st.warning(
             f"AI unavailable — charts & ratios will still work.\n\n"
             f"To enable AI insights, start Ollama and run:\n"
             f"`ollama pull {OLLAMA_MODEL}`"
         )
+
+    force_reanalyze = st.checkbox(
+        "Force reanalyze",
+        value=False,
+        help="Re-run all analysis even if this file was already analyzed this session.",
+    )
 
     analyze_btn = st.button(
         "Analyze",
@@ -78,59 +226,213 @@ with st.sidebar:
     st.caption("Model provider: " + MODEL_PROVIDER)
 
 
-# ── Analysis pipeline ──────────────────────────────────────────────────────────
+# ── Phase 1: fast analysis (parse + ratios + anomalies + trends) ───────────────
 if analyze_btn and uploaded:
-    with st.spinner("Parsing spreadsheet..."):
-        try:
-            file_bytes = io.BytesIO(uploaded.read())
-            # Write to a temp path openpyxl can read
-            import tempfile, os
-            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-                tmp.write(file_bytes.read())
-                tmp_path = tmp.name
+    file_data = uploaded.read()
+    file_hash = hashlib.md5(file_data).hexdigest()
 
-            stmt = parse_excel(tmp_path)
-            os.unlink(tmp_path)
-            st.session_state.stmt = stmt
-        except Exception as e:
-            st.error(f"Failed to parse spreadsheet: {e}")
-            st.stop()
+    if file_hash == st.session_state.file_hash and not force_reanalyze:
+        st.sidebar.success("Cached results loaded — file unchanged. Check **Force reanalyze** to recompute.")
+    else:
+        with st.status("Reading your statement…", expanded=True) as phase1_status:
+            st.write("Parsing spreadsheet…")
+            try:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                    tmp.write(file_data)
+                    tmp_path = tmp.name
+                stmt = parse_excel(tmp_path)
+                os.unlink(tmp_path)
+                st.session_state.stmt = stmt
+            except Exception as e:
+                st.error(f"Failed to parse spreadsheet: {e}")
+                st.stop()
 
-    with st.spinner("Calculating ratios..."):
-        st.session_state.ratios = calculate_ratios(stmt)
+            st.write("Calculating financial ratios…")
+            st.session_state.ratios = calculate_ratios(stmt)
 
-    with st.spinner("Detecting anomalies..."):
-        st.session_state.anomalies = detect_anomalies(stmt)
+            st.write("Detecting anomalies…")
+            st.session_state.anomalies = detect_anomalies(stmt)
 
-    with st.spinner("Analyzing trends..."):
-        st.session_state.trends = analyze_trends(stmt)
+            st.write("Analyzing trends…")
+            st.session_state.trends = analyze_trends(stmt)
 
-    # Wire up chat agent
-    chat_agent = ChatAgent()
-    if ai_ok:
-        chat_agent.set_context(
-            stmt,
-            st.session_state.ratios,
-            st.session_state.anomalies,
-            st.session_state.trends,
+            st.write("Wiring up chat agent…")
+            chat_agent = ChatAgent()
+            if ai_ok:
+                chat_agent.set_context(
+                    stmt,
+                    st.session_state.ratios,
+                    st.session_state.anomalies,
+                    st.session_state.trends,
+                )
+            st.session_state.chat_agent = chat_agent
+            st.session_state.file_hash  = file_hash
+
+            phase1_status.update(
+                label="Data ready! AI insights generating next…" if ai_ok else "Analysis complete!",
+                state="complete",
+                expanded=False,
+            )
+
+        # Preserve any previously-generated AI content for this file,
+        # unless the user explicitly requested a full reanalysis.
+        existing_idx = next(
+            (i for i, h in enumerate(st.session_state.analysis_history)
+             if h["file_hash"] == file_hash),
+            None,
         )
-    st.session_state.chat_agent = chat_agent
-    st.session_state.chat_history = []
-    st.session_state.summary_text = ""
+        existing_entry = st.session_state.analysis_history[existing_idx] if existing_idx is not None else {}
+        if force_reanalyze:
+            prev_summary      = ""
+            prev_commentary   = ""
+            prev_explanations = {}
+            prev_chat         = []
+        else:
+            prev_summary      = existing_entry.get("summary_text", "")
+            prev_commentary   = existing_entry.get("ratio_commentary", "")
+            prev_explanations = existing_entry.get("anomaly_explanations", {})
+            prev_chat         = existing_entry.get("chat_history", [])
 
-    st.success("Analysis complete.")
+        history_entry = {
+            "filename":             uploaded.name,
+            "file_hash":            file_hash,
+            "property_name":        stmt.property_name,
+            "period":               stmt.period,
+            "analyzed_at":          datetime.now(),
+            "stmt":                 stmt,
+            "ratios":               st.session_state.ratios,
+            "anomalies":            st.session_state.anomalies,
+            "trends":               st.session_state.trends,
+            "summary_text":         prev_summary,
+            "ratio_commentary":     prev_commentary,
+            "anomaly_explanations": prev_explanations,
+            "chat_history":         prev_chat,
+        }
+        if existing_idx is not None:
+            st.session_state.analysis_history[existing_idx] = history_entry
+        else:
+            st.session_state.analysis_history.append(history_entry)
+
+        # Restore AI content (may be empty if first time; Phase 2 will fill if so)
+        st.session_state.summary_text         = prev_summary
+        st.session_state.ratio_commentary     = prev_commentary
+        st.session_state.anomaly_explanations = dict(prev_explanations)
+        st.session_state.chat_history         = list(prev_chat)
+        # Only run Phase 2 if AI content hasn't been generated yet for this file
+        st.session_state.ai_pending           = ai_ok and not bool(prev_summary)
+
+        _disk_save_entry(history_entry)
+        st.rerun()   # rerun so tabs populate immediately before Phase 2 starts
+
+
+# ── Sidebar — history (rendered after pipeline so it sees any new entry) ───────
+with st.sidebar:
+    st.divider()
+    st.markdown("**History**")
+
+    if not st.session_state.analysis_history:
+        st.caption("No analyses yet.")
+    else:
+        # Clear All
+        if st.button("Clear All History", use_container_width=True):
+            _disk_clear_all()
+            # If currently loaded file is in history, reset the main view too
+            st.session_state.analysis_history = []
+            st.session_state.stmt             = None
+            st.session_state.ratios           = None
+            st.session_state.anomalies        = None
+            st.session_state.trends           = None
+            st.session_state.file_hash        = None
+            st.session_state.summary_text     = ""
+            st.session_state.ratio_commentary = ""
+            st.session_state.anomaly_explanations = {}
+            st.session_state.ai_pending       = False
+            st.rerun()
+
+        for _i, _entry in enumerate(reversed(st.session_state.analysis_history)):
+            _real_i   = len(st.session_state.analysis_history) - 1 - _i
+            _is_cur   = _entry["file_hash"] == st.session_state.file_hash
+            _label    = ("✅ " if _is_cur else "") + _clean_meta(_entry["property_name"])
+
+            with st.expander(_label, expanded=False):
+                st.caption(_entry["filename"])
+                st.caption(f"{_entry['period']}  ·  {_entry['analyzed_at'].strftime('%b %d  %H:%M')}")
+                st.caption(f"{len(_entry['anomalies'])} anomalies detected")
+
+                btn_col, del_col = st.columns([3, 1])
+
+                if _is_cur:
+                    btn_col.caption("Currently loaded")
+                else:
+                    if btn_col.button("Load", key=f"hist_load_{_real_i}", use_container_width=True):
+                        st.session_state["_load_history_idx"] = _real_i
+                        st.rerun()
+
+                if del_col.button("✕", key=f"hist_del_{_real_i}", help="Remove from history"):
+                    _disk_delete_entry(_entry["file_hash"])
+                    st.session_state.analysis_history.pop(_real_i)
+                    # If we deleted the currently loaded file, clear the main view
+                    if _is_cur:
+                        st.session_state.stmt             = None
+                        st.session_state.ratios           = None
+                        st.session_state.anomalies        = None
+                        st.session_state.trends           = None
+                        st.session_state.file_hash        = None
+                        st.session_state.summary_text     = ""
+                        st.session_state.ratio_commentary = ""
+                        st.session_state.anomaly_explanations = {}
+                        st.session_state.ai_pending       = False
+                    st.rerun()
+
+
+# ── History load handler ───────────────────────────────────────────────────────
+if "_load_history_idx" in st.session_state:
+    idx = st.session_state["_load_history_idx"]
+    del st.session_state["_load_history_idx"]
+    if 0 <= idx < len(st.session_state.analysis_history):
+        entry = st.session_state.analysis_history[idx]
+        st.session_state.stmt                 = entry["stmt"]
+        st.session_state.ratios               = entry["ratios"]
+        st.session_state.anomalies            = entry["anomalies"]
+        st.session_state.trends               = entry["trends"]
+        st.session_state.summary_text         = entry.get("summary_text", "")
+        st.session_state.ratio_commentary     = entry.get("ratio_commentary", "")
+        st.session_state.anomaly_explanations = dict(entry.get("anomaly_explanations", {}))
+        st.session_state.file_hash            = entry["file_hash"]
+        # Re-trigger AI Phase 2 if this entry was saved before AI ran
+        st.session_state.ai_pending = ai_ok and not bool(entry.get("summary_text", ""))
+        st.session_state.chat_history         = list(entry.get("chat_history", []))
+        chat_agent = ChatAgent()
+        if ai_ok:
+            chat_agent.set_context(
+                entry["stmt"], entry["ratios"], entry["anomalies"], entry["trends"]
+            )
+        st.session_state.chat_agent = chat_agent
+        st.rerun()
 
 
 # ── Main content ───────────────────────────────────────────────────────────────
-stmt     = st.session_state.stmt
-ratios   = st.session_state.ratios
-anomalies= st.session_state.anomalies
-trends   = st.session_state.trends
+stmt      = st.session_state.stmt
+ratios    = st.session_state.ratios
+anomalies = st.session_state.anomalies
+trends    = st.session_state.trends
 
 if stmt is None:
     st.info("Upload an Excel financial statement in the sidebar and click **Analyze** to begin.")
     st.stop()
 
+# ── AI-pending banner ──────────────────────────────────────────────────────────
+# Shown above tabs so the user knows AI is still running while they browse data.
+if st.session_state.ai_pending:
+    st.info(
+        "All data tabs are ready to browse.  "
+        "AI is generating the **Executive Summary** and **Ratio Commentary** below — "
+        "this usually takes 1–3 minutes depending on your model.",
+        icon="⏳",
+    )
+
+# ── Tabs ───────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
     "Executive Summary",
     "Revenue",
@@ -144,56 +446,44 @@ tabs = st.tabs([
 
 # ── Tab 1: Executive Summary ───────────────────────────────────────────────────
 with tabs[0]:
-    st.header(f"{stmt.property_name}")
-    st.caption(f"{stmt.period}  ·  {stmt.book_type}")
+    st.header(_clean_meta(stmt.property_name))
+    _period   = _clean_meta(stmt.period)
+    _booktype = _clean_meta(stmt.book_type)
+    _caption  = "  ·  ".join(p for p in [_period, _booktype] if p)
+    st.caption(_caption)
 
-    # KPI metric cards
     col1, col2, col3, col4, col5 = st.columns(5)
-    def _kpi(col, label, key, prefix="$", invert=False):
+    def _kpi(col, label, key):
         v = stmt.annual(key)
-        col.metric(label, f"{prefix}{abs(v):,.0f}" if v is not None else "N/A",
-                   delta=None)
+        col.metric(label, f"${abs(v):,.0f}" if v is not None else "N/A")
 
-    _kpi(col1, "Total Revenue",   "total_revenue")
-    _kpi(col2, "Total OpEx",      "total_operating_expenses")
-    _kpi(col3, "NOI",             "noi")
-    _kpi(col4, "Net Income",      "net_income")
-    _kpi(col5, "Cash Flow",       "cash_flow")
+    _kpi(col1, "Total Revenue",  "total_revenue")
+    _kpi(col2, "Total OpEx",     "total_operating_expenses")
+    _kpi(col3, "NOI",            "noi")
+    _kpi(col4, "Net Income",     "net_income")
+    _kpi(col5, "Cash Flow",      "cash_flow")
 
     st.divider()
 
-    # Anomaly banner
     high_count = sum(1 for a in anomalies if a.severity == "high")
     if high_count:
         st.error(f"{high_count} high-severity issue(s) detected — see the Anomalies tab.")
 
-    # AI executive summary
-    if ai_ok:
-        if not st.session_state.summary_text:
-            st.subheader("Executive Summary")
-            orchestrator = OrchestratorAgent()
-            summary_placeholder = st.empty()
-            full_text = ""
-            with st.spinner("Generating AI summary..."):
-                for chunk in orchestrator.generate_executive_summary(stmt, ratios, anomalies, trends):
-                    full_text += chunk
-                    summary_placeholder.markdown(full_text + "▌")
-            summary_placeholder.markdown(full_text)
-            st.session_state.summary_text = full_text
-        else:
-            st.subheader("Executive Summary")
-            st.markdown(st.session_state.summary_text)
+    st.subheader("Executive Summary")
+    if st.session_state.summary_text:
+        st.markdown(_safe_md(st.session_state.summary_text))
+    elif st.session_state.ai_pending:
+        st.caption("Generating… check back in a moment.")
+    elif ai_ok:
+        st.info("AI summary was not generated — try clicking **Analyze** again.")
     else:
         st.info("Start Ollama to enable AI-generated executive summaries.")
 
-    # Quick ratio snapshot
     st.divider()
     st.subheader("Key Ratios at a Glance")
     ratio_cols = st.columns(4)
-    ratio_items = list(ratios.ratios.values())[:8]
-    for i, r in enumerate(ratio_items):
-        status_icon = {"good": "🟢", "warning": "🟡", "bad": "🔴"}.get(r.status, "⚪")
-        ratio_cols[i % 4].metric(r.label, r.pct_display(), delta=None)
+    for i, r in enumerate(list(ratios.ratios.values())[:8]):
+        ratio_cols[i % 4].metric(r.label, r.pct_display())
 
 
 # ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
@@ -205,19 +495,16 @@ with tabs[1]:
     st.plotly_chart(charts.vacancy_rate_bar(stmt), use_container_width=True)
     st.plotly_chart(charts.noi_margin_trend(stmt), use_container_width=True)
 
-    # Revenue table
     st.subheader("Monthly Revenue Detail")
-    import pandas as pd
     rev_rows = []
-    rev_keys = [
+    for key, label in [
         ("gross_potential_rent", "Gross Potential Rent"),
         ("vacancy_loss",         "Vacancy Loss"),
         ("concession_loss",      "Concession Loss"),
         ("net_rental_revenue",   "Net Rental Revenue"),
         ("other_tenant_charges", "Other Tenant Charges"),
         ("total_revenue",        "Total Revenue"),
-    ]
-    for key, label in rev_keys:
+    ]:
         item = stmt.get_figure(key)
         if item:
             row = {"Line Item": label}
@@ -248,7 +535,6 @@ with tabs[2]:
 with tabs[3]:
     st.header("Financial Ratios")
 
-    # Gauge row
     gauge_keys = ["oer", "noi_margin", "vacancy_rate", "dscr"]
     gauge_cols = st.columns(len(gauge_keys))
     for col, key in zip(gauge_cols, gauge_keys):
@@ -258,35 +544,37 @@ with tabs[3]:
 
     st.divider()
 
-    # Full ratio table
-    import pandas as pd
     ratio_rows = []
     for r in ratios.ratios.values():
-        lo = f"{r.benchmark_low*100:.0f}%" if r.benchmark_low is not None and r.unit == "%" else (str(r.benchmark_low) if r.benchmark_low else "—")
-        hi = f"{r.benchmark_high*100:.0f}%" if r.benchmark_high is not None and r.unit == "%" else (str(r.benchmark_high) if r.benchmark_high else "—")
-        status_icon = {"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, "—")
+        lo = f"{r.benchmark_low*100:.0f}%"  if (r.benchmark_low  is not None and r.unit == "%") else (str(r.benchmark_low)  if r.benchmark_low  else "—")
+        hi = f"{r.benchmark_high*100:.0f}%" if (r.benchmark_high is not None and r.unit == "%") else (str(r.benchmark_high) if r.benchmark_high else "—")
         ratio_rows.append({
-            "Metric": r.label,
-            "Value": r.pct_display(),
-            "Benchmark Low": lo,
-            "Benchmark High": hi,
-            "Status": status_icon,
+            "Metric":          r.label,
+            "Value":           r.pct_display(),
+            "Benchmark Low":   lo,
+            "Benchmark High":  hi,
+            "Status": {"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, "—"),
         })
     df_ratios = pd.DataFrame(ratio_rows)
 
     def _color_status(val):
-        colors = {"Good": "background-color: #d4edda", "Watch": "background-color: #fff3cd", "Concern": "background-color: #f8d7da"}
-        return colors.get(val, "")
+        return {"Good":    "background-color: #d4edda",
+                "Watch":   "background-color: #fff3cd",
+                "Concern": "background-color: #f8d7da"}.get(val, "")
 
-    styled = df_ratios.style.applymap(_color_status, subset=["Status"])
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    st.dataframe(
+        df_ratios.style.applymap(_color_status, subset=["Status"]),
+        use_container_width=True, hide_index=True,
+    )
 
     if ai_ok:
-        with st.expander("AI Ratio Commentary"):
-            orchestrator = OrchestratorAgent()
-            with st.spinner("Generating commentary..."):
-                commentary = orchestrator.generate_ratio_commentary(stmt, ratios)
-            st.markdown(commentary)
+        with st.expander("AI Ratio Commentary", expanded=True):
+            if st.session_state.ratio_commentary:
+                st.markdown(_safe_md(st.session_state.ratio_commentary))
+            elif st.session_state.ai_pending:
+                st.caption("Generating… check back in a moment.")
+            else:
+                st.info("Commentary was not generated — try clicking **Analyze** again.")
 
 
 # ── Tab 5: Anomalies ──────────────────────────────────────────────────────────
@@ -301,12 +589,18 @@ with tabs[4]:
             ["high", "medium", "low"],
             default=["high", "medium", "low"],
         )
-        filtered = [a for a in anomalies if a.severity in sev_filter]
+        filtered    = [a for a in anomalies if a.severity in sev_filter]
+        anomaly_pos = {id(a): i for i, a in enumerate(anomalies)}
+
         st.caption(f"{len(filtered)} issue(s) shown")
 
         for a in filtered:
+            pos  = anomaly_pos[id(a)]
             icon = {"high": "🔴", "medium": "🟡", "low": "🔵"}.get(a.severity, "⚪")
-            with st.expander(f"{icon} [{a.severity.upper()}]  {a.line_item_label}  —  Cell {a.cell_ref}", expanded=(a.severity == "high")):
+            with st.expander(
+                f"{icon} [{a.severity.upper()}]  {a.line_item_label}  -  Cell {a.cell_ref}",
+                expanded=(a.severity == "high"),
+            ):
                 st.markdown(f"**Category:** {a.category.replace('_', ' ').title()}")
                 st.markdown(f"**Description:** {a.description}")
                 if a.value is not None:
@@ -316,11 +610,17 @@ with tabs[4]:
                 st.markdown(f"**Row:** {a.row_number}  ·  **Cell:** `{a.cell_ref}`")
 
                 if ai_ok:
-                    if st.button("Explain this anomaly", key=f"explain_{a.row_number}_{a.cell_ref}"):
-                        orchestrator = OrchestratorAgent()
-                        with st.spinner("Analyzing..."):
-                            explanation = orchestrator.explain_anomaly(a, stmt)
-                        st.info(explanation)
+                    expl_key = f"anomaly_expl_{pos}"
+                    if expl_key in st.session_state.anomaly_explanations:
+                        st.info(st.session_state.anomaly_explanations[expl_key])
+                    else:
+                        if st.button("Explain this anomaly", key=f"explain_{pos}"):
+                            orchestrator = OrchestratorAgent()
+                            with st.spinner("Analyzing…"):
+                                explanation = orchestrator.explain_anomaly(a, stmt)
+                            st.session_state.anomaly_explanations[expl_key] = explanation
+                            _sync_ai_content()
+                            st.info(explanation)
 
 
 # ── Tab 6: Trends ─────────────────────────────────────────────────────────────
@@ -339,17 +639,16 @@ with tabs[5]:
 
     st.divider()
     st.subheader("Trend Summary")
-    import pandas as pd
     trend_rows = []
     for key, s in trends.series.items():
         icon = {"improving": "📈", "worsening": "📉", "stable": "➡️", "volatile": "〰️"}.get(s.trend_direction, "")
         trend_rows.append({
-            "Metric": s.label,
-            "Direction": f"{icon} {s.trend_direction.title()}",
+            "Metric":         s.label,
+            "Direction":      f"{icon} {s.trend_direction.title()}",
             "Overall Change": f"{s.overall_pct_change:+.1f}%" if s.overall_pct_change else "—",
-            "Peak Month": s.peak_month or "—",
-            "Trough Month": s.trough_month or "—",
-            "Monthly Avg": f"${s.avg_value:,.0f}" if s.avg_value else "—",
+            "Peak Month":     s.peak_month   or "—",
+            "Trough Month":   s.trough_month or "—",
+            "Monthly Avg":    f"${s.avg_value:,.0f}" if s.avg_value else "—",
         })
     st.dataframe(pd.DataFrame(trend_rows), use_container_width=True, hide_index=True)
 
@@ -364,51 +663,109 @@ with tabs[6]:
             "AI is not available. Start Ollama and pull a model to enable chat.\n\n"
             f"Run: `ollama pull {OLLAMA_MODEL}`"
         )
+    elif st.session_state.ai_pending:
+        # Phase 2 is running below — chat must wait or its st.rerun() will
+        # kill the streaming response mid-flight, leaving an empty reply.
+        st.info(
+            "AI is still generating insights below. "
+            "Chat will be available as soon as that finishes.",
+            icon="⏳",
+        )
     else:
-        # Render chat history
+        # Clear chat history button (only show when there is history)
+        if st.session_state.chat_history:
+            if st.button("Clear chat history", key="clear_chat"):
+                st.session_state.chat_history = []
+                _sync_chat_to_history()
+                st.rerun()
+
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        # Suggested starter questions
-        if not st.session_state.chat_history:
+        # ── Persistent suggestion pool — show up to 5 unasked questions ────────
+        _ALL_SUGGESTIONS = [
+            "Why is cash flow negative if net income is positive?",
+            "Which expense category is growing fastest month over month?",
+            "How does our vacancy rate compare to the industry benchmark?",
+            "What drove the changes in NOI between Q1 and Q4?",
+            "Are there any expenses I should investigate further?",
+            "What is the overall NOI margin and how does it trend?",
+            "Which months had the highest and lowest revenue?",
+            "How does payroll expense compare to total operating expenses?",
+            "What is the debt service coverage ratio and what does it mean?",
+            "Are there any months with unusual spikes in utility costs?",
+            "What percentage of gross potential rent is lost to vacancy?",
+            "What is the biggest driver of operating expense growth?",
+        ]
+        _asked = {msg["content"] for msg in st.session_state.chat_history if msg["role"] == "user"}
+        _remaining = [q for q in _ALL_SUGGESTIONS if q not in _asked]
+        if _remaining:
             st.subheader("Suggested questions")
-            suggestions = [
-                "Why is cash flow negative if net income is positive?",
-                "Which expense category is growing fastest month over month?",
-                "How does our vacancy rate compare to the industry benchmark?",
-                "What drove the changes in NOI between Q1 and Q4?",
-                "Are there any expenses I should investigate further?",
-            ]
-            cols = st.columns(2)
-            for i, q in enumerate(suggestions):
-                if cols[i % 2].button(q, key=f"sugg_{i}", use_container_width=True):
-                    st.session_state._pending_question = q
+            _show = _remaining[:5]
+            _scols = st.columns(2)
+            for _si, _sq in enumerate(_show):
+                _pool_idx = _ALL_SUGGESTIONS.index(_sq)
+                if _scols[_si % 2].button(_sq, key=f"sugg_{_pool_idx}", use_container_width=True):
+                    st.session_state._pending_question = _sq
 
-        # Process pending suggestion click
-        pending = st.session_state.pop("_pending_question", None)
-
-        # Chat input
-        user_input = st.chat_input("Ask about your financial report...")
-        question = pending or user_input
+        pending    = st.session_state.pop("_pending_question", None)
+        user_input = st.chat_input("Ask about your financial report…")
+        question   = pending or user_input
 
         if question:
             chat_agent: ChatAgent = st.session_state.chat_agent
             if chat_agent is None:
                 st.error("Please run analysis first.")
             else:
-                # Display user message
                 with st.chat_message("user"):
                     st.markdown(question)
                 st.session_state.chat_history.append({"role": "user", "content": question})
 
-                # Stream assistant response
                 with st.chat_message("assistant"):
-                    response_placeholder = st.empty()
+                    placeholder   = st.empty()
+                    placeholder.markdown("_Thinking..._")
                     full_response = ""
-                    for chunk in chat_agent.ask(question, st.session_state.chat_history[:-1]):
-                        full_response += chunk
-                        response_placeholder.markdown(full_response + "▌")
-                    response_placeholder.markdown(full_response)
+                    try:
+                        for chunk in chat_agent.ask(question, st.session_state.chat_history[:-1]):
+                            full_response += chunk
+                            placeholder.markdown(full_response + "▌")
+                    except Exception as e:
+                        placeholder.error(f"Chat error: {e}")
+                        full_response = f"_(Error: {e})_"
+                    if full_response:
+                        placeholder.markdown(full_response)
+                    else:
+                        placeholder.warning(
+                            "No response received. "
+                            "Check that Ollama is running (`ollama serve`) and the model is loaded."
+                        )
 
                 st.session_state.chat_history.append({"role": "assistant", "content": full_response})
+                _sync_chat_to_history()
+                st.rerun()  # refresh so suggestion buttons update to exclude the just-asked question
+
+
+# ── Phase 2: AI generation (runs after tabs so all data tabs are visible first) ─
+# Only step labels are written here so no markdown content bleeds into every tab.
+# After generation completes a rerun populates the AI sections in their own tabs.
+if st.session_state.ai_pending:
+    st.divider()
+    with st.status("Generating AI insights…", expanded=True) as ai_status:
+        orchestrator = OrchestratorAgent()
+
+        st.write("Writing executive summary…")
+        full_text = ""
+        for chunk in orchestrator.generate_executive_summary(stmt, ratios, anomalies, trends):
+            full_text += chunk
+        st.session_state.summary_text = full_text
+
+        st.write("Writing ratio commentary…")
+        commentary = orchestrator.generate_ratio_commentary(stmt, ratios)
+        st.session_state.ratio_commentary = commentary
+
+        ai_status.update(label="AI insights ready!", state="complete", expanded=False)
+
+    st.session_state.ai_pending = False
+    _sync_ai_content()
+    st.rerun()   # rerun to populate Executive Summary and Ratio Commentary in their tabs

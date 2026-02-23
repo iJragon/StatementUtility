@@ -310,7 +310,9 @@ def _extract_metadata(raw: List[List[Any]], s: SheetStructure) -> Dict[str, str]
                 continue
             # First substantial non-empty text = property name
             if "property_name" not in meta and len(text) > 3:
-                meta["property_name"] = text
+                # Strip trailing system codes like ".secesml" (dot + lowercase, no spaces)
+                cleaned = re.sub(r"\.[a-z]{2,20}$", "", text).strip()
+                meta["property_name"] = cleaned if len(cleaned) > 3 else text
             # Period detection
             if "period" not in meta and ("period" in text.lower() or YEAR_RE.search(text)):
                 meta["period"] = text

@@ -34,8 +34,11 @@ _LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(family="Inter, sans-serif", size=13),
-    margin=dict(l=40, r=40, t=60, b=40),
+    margin=dict(l=40, r=40, t=90, b=40),  # t=90 gives breathing room between title and legend
 )
+
+# Horizontal legend placed above the plot with enough space below the title
+_H_LEGEND = dict(orientation="h", yanchor="bottom", y=1.06, xanchor="center", x=0.5)
 
 
 # ── 1. Revenue vs Operating Expenses — monthly line chart ─────────────────────
@@ -69,7 +72,7 @@ def revenue_vs_opex(stmt: FinancialStatement) -> go.Figure:
     fig.update_layout(
         title="Monthly Revenue vs. Operating Expenses vs. NOI",
         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        legend=_H_LEGEND,
         **_LAYOUT,
     )
     return fig
@@ -147,7 +150,7 @@ def controllable_vs_noncontrollable(stmt: FinancialStatement) -> go.Figure:
         barmode="stack",
         title="Monthly Controllable vs. Non-Controllable Expenses",
         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        legend=_H_LEGEND,
         **_LAYOUT,
     )
     return fig
@@ -247,7 +250,7 @@ def cashflow_vs_netincome(stmt: FinancialStatement) -> go.Figure:
         barmode="group",
         title="Monthly Net Income vs. Cash Flow",
         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        legend=_H_LEGEND,
         **_LAYOUT,
     )
     return fig
@@ -326,7 +329,7 @@ def expense_heatmap(stmt: FinancialStatement) -> go.Figure:
         colorbar=dict(title="$"),
     ))
     fig.update_layout(
-        title="Expense Heatmap — Category × Month",
+        title="Expense Heatmap by Category and Month",
         xaxis_tickangle=-35,
         **_LAYOUT,
     )
@@ -366,7 +369,7 @@ def revenue_waterfall(stmt: FinancialStatement) -> go.Figure:
         hovertemplate="%{x}<br>$%{y:,.0f}<extra></extra>",
     ))
     fig.update_layout(
-        title="Annual Revenue Waterfall — From Gross Potential to Total Revenue",
+        title="Annual Revenue Waterfall: Gross Potential to Total Revenue",
         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
         **_LAYOUT,
     )
@@ -397,7 +400,7 @@ def trend_comparison(trend_report: TrendReport, keys: List[str]) -> go.Figure:
     fig.update_layout(
         title="Trend Comparison",
         yaxis_tickprefix="$", yaxis_tickformat=",.0f",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
+        legend=_H_LEGEND,
         **_LAYOUT,
     )
     return fig
