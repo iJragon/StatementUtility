@@ -308,6 +308,9 @@ def _extract_metadata(raw: List[List[Any]], s: SheetStructure) -> Dict[str, str]
             text = str(cell).strip()
             if not text:
                 continue
+            # Skip spreadsheet system artifacts like "Tree =", "Page =", "View ="
+            if re.match(r'^\w[\w\s]{0,20}=\s*$', text):
+                continue
             # First substantial non-empty text = property name
             if "property_name" not in meta and len(text) > 3:
                 # Strip trailing system codes like ".secesml" (dot + lowercase, no spaces)

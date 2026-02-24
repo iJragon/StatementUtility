@@ -95,12 +95,13 @@ def _disk_clear_all():
 
 def _clean_meta(text: str) -> str:
     """
-    Strip internal system codes from metadata strings before displaying them.
+    Strip internal system codes and Excel label prefixes from metadata strings.
     Handles patterns like:
-      (.secesml)          - parenthetical codes
-      .secesml            - trailing dot-codes
-      tdg_cfdet           - underscore_identifiers
-    Leaves normal text like 'Accrual', 'Jan 2025 - Dec 2025' untouched.
+      (.secesml)               - parenthetical codes
+      .secesml                 - trailing dot-codes
+      tdg_cfdet                - underscore_identifiers
+      "Period = Jan 2025-..."  - label-prefixed cells (keeps value after =)
+      "; Tree ="               - trailing Excel artifact suffixes
     Falls back to the original string if cleaning removes everything.
     """
     if not text:
@@ -112,13 +113,29 @@ def _clean_meta(text: str) -> str:
     text = re.sub(r"\s*\.[a-z]{2,20}$", "", text.strip(), flags=re.IGNORECASE)
     # Standalone underscore_words like tdg_cfdet (but not "Jan 2025" or "Accrual")
     text = re.sub(r"\s*\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b", "", text, flags=re.IGNORECASE)
+    # Trailing "; Label =" junk like "; Tree =" or "; View ="
+    text = re.sub(r"\s*;\s*[A-Za-z][A-Za-z\s]{0,20}=\s*\S*\s*$", "", text).strip()
+    # "Label = Value" prefix — strip the label, keep just the value
+    # e.g. "Period = Jan 2025-Dec 2025" → "Jan 2025-Dec 2025"
+    # e.g. "Book = Accrual" → "Accrual"
+    # Only strip if the label part is a short word-only phrase (no dates/numbers)
+    text = re.sub(r"^[A-Za-z][A-Za-z\s]{0,20}\s*=\s*", "", text).strip()
     result = text.strip(" ·-./,;")
     return result if result else original
 
 
 def _safe_md(text: str) -> str:
-    """Escape bare dollar signs so Streamlit/KaTeX doesn't render $value as LaTeX math."""
-    return text.replace("$", r"\$")
+    """
+    Escape characters that cause unintended Markdown rendering in AI-generated text.
+    - Dollar signs: prevent KaTeX from treating $value as a LaTeX math expression.
+    - Underscores: prevent italic rendering. The LLM often outputs identifiers like
+      Net_Income or wraps phrases in _underscores_ for emphasis, which causes Streamlit
+      to italicize the text and silently eat the surrounding spaces, making words run
+      together (e.g. "despitepositiveNetIncome").
+    """
+    text = text.replace("$", r"\$")
+    text = text.replace("_", r"\_")
+    return text
 
 
 def _sync_ai_content():
@@ -159,6 +176,102 @@ st.set_page_config(
 ai_ok      = is_ai_available()
 model_name = ANTHROPIC_MODEL if MODEL_PROVIDER == "anthropic" else OLLAMA_MODEL
 
+# ── Custom styles ───────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+/* ── Chrome ── */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+[data-testid="stDeployButton"] {display: none;}
+[data-testid="stToolbarActions"] {display: none;}
+
+/* ── Main container ── */
+.main .block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+    max-width: 1400px;
+}
+
+/* ── Metric cards: shape only, no color override ── */
+[data-testid="metric-container"] {
+    border-radius: 12px;
+    padding: 20px 16px;
+    border: 1px solid rgba(128,128,128,0.2);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-testid="stMetricValue"] {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+}
+[data-testid="stMetricLabel"] p {
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    opacity: 0.65;
+}
+
+/* ── Tabs: shape only ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 2px;
+    border-radius: 10px;
+    padding: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    border: none !important;
+    background: transparent;
+}
+.stTabs [aria-selected="true"] {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    font-weight: 600;
+}
+
+/* ── Sidebar title ── */
+[data-testid="stSidebar"] h1 {
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    border-radius: 8px;
+    font-weight: 500;
+}
+.stButton > button[kind="primary"] {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* ── Alerts ── */
+[data-testid="stAlert"] {
+    border-radius: 10px;
+}
+
+/* ── Expanders ── */
+[data-testid="stExpander"] {
+    border-radius: 10px !important;
+    border: 1px solid rgba(128,128,128,0.2) !important;
+}
+
+/* ── Dataframes ── */
+[data-testid="stDataFrame"] {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* ── Chat messages ── */
+[data-testid="stChatMessage"] {
+    border-radius: 12px;
+    margin-bottom: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Session state ──────────────────────────────────────────────────────────────
 for key, default in {
     "stmt": None,
@@ -197,15 +310,15 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload Excel statement (.xlsx)",
         type=["xlsx", "xls"],
-        help="Supports any format. Files are identified by content, not filename — "
-             "re-uploading the same file reuses cached results automatically.",
+        help="Supports any format. Files are identified by content, not filename. "
+             "Re-uploading the same file reuses cached results automatically.",
     )
 
     if ai_ok:
         st.success("AI assistant ready")
     else:
         st.warning(
-            f"AI unavailable — charts & ratios will still work.\n\n"
+            f"AI is unavailable. Charts and ratios will still work.\n\n"
             f"To enable AI insights, start Ollama and run:\n"
             f"`ollama pull {OLLAMA_MODEL}`"
         )
@@ -232,7 +345,7 @@ if analyze_btn and uploaded:
     file_hash = hashlib.md5(file_data).hexdigest()
 
     if file_hash == st.session_state.file_hash and not force_reanalyze:
-        st.sidebar.success("Cached results loaded — file unchanged. Check **Force reanalyze** to recompute.")
+        st.sidebar.success("Cached results loaded. Check **Force reanalyze** to recompute.")
     else:
         with st.status("Reading your statement…", expanded=True) as phase1_status:
             st.write("Parsing spreadsheet…")
@@ -419,16 +532,41 @@ anomalies = st.session_state.anomalies
 trends    = st.session_state.trends
 
 if stmt is None:
-    st.info("Upload an Excel financial statement in the sidebar and click **Analyze** to begin.")
+    st.markdown("""
+    <div style="text-align:center; padding:60px 40px; max-width:600px; margin:60px auto 0;">
+        <div style="font-size:3.5rem; margin-bottom:16px;">📊</div>
+        <h2 style="font-weight:700; margin-bottom:12px;">Financial Statement Analysis</h2>
+        <p style="font-size:1rem; line-height:1.7; margin-bottom:32px; opacity:0.75;">
+            Upload an Excel profit and loss statement using the sidebar,
+            then click <strong>Analyze</strong> to generate charts,
+            financial ratios, anomaly detection, and AI-powered insights.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:12px; text-align:left;
+                    border-radius:12px; padding:24px; border:1px solid rgba(128,128,128,0.2);">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="flex-shrink:0; width:1.5rem; text-align:center;">📤</span><span>Upload any .xlsx profit and loss statement</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="flex-shrink:0; width:1.5rem; text-align:center;">🔍</span><span>Auto-parsed regardless of format or layout</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="flex-shrink:0; width:1.5rem; text-align:center;">🤖</span><span>AI insights powered by a local Ollama model</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="flex-shrink:0; width:1.5rem; text-align:center;">💬</span><span>Chat with your financial data in plain language</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # ── AI-pending banner ──────────────────────────────────────────────────────────
 # Shown above tabs so the user knows AI is still running while they browse data.
 if st.session_state.ai_pending:
     st.info(
-        "All data tabs are ready to browse.  "
-        "AI is generating the **Executive Summary** and **Ratio Commentary** below — "
-        "this usually takes 1–3 minutes depending on your model.",
+        "All data tabs are ready to browse. "
+        "AI is generating the **Executive Summary** and **Ratio Commentary** below. "
+        "This usually takes 1 to 3 minutes depending on your model.",
         icon="⏳",
     )
 
@@ -457,17 +595,17 @@ with tabs[0]:
         v = stmt.annual(key)
         col.metric(label, f"${abs(v):,.0f}" if v is not None else "N/A")
 
-    _kpi(col1, "Total Revenue",  "total_revenue")
-    _kpi(col2, "Total OpEx",     "total_operating_expenses")
-    _kpi(col3, "NOI",            "noi")
-    _kpi(col4, "Net Income",     "net_income")
-    _kpi(col5, "Cash Flow",      "cash_flow")
+    _kpi(col1, "Total Revenue",        "total_revenue")
+    _kpi(col2, "Operating Expenses",   "total_operating_expenses")
+    _kpi(col3, "NOI",                  "noi")
+    _kpi(col4, "Net Income",           "net_income")
+    _kpi(col5, "Cash Flow",            "cash_flow")
 
     st.divider()
 
     high_count = sum(1 for a in anomalies if a.severity == "high")
     if high_count:
-        st.error(f"{high_count} high-severity issue(s) detected — see the Anomalies tab.")
+        st.error(f"{high_count} high-severity {'issue' if high_count == 1 else 'issues'} detected. See the Anomalies tab.")
 
     st.subheader("Executive Summary")
     if st.session_state.summary_text:
@@ -475,7 +613,7 @@ with tabs[0]:
     elif st.session_state.ai_pending:
         st.caption("Generating… check back in a moment.")
     elif ai_ok:
-        st.info("AI summary was not generated — try clicking **Analyze** again.")
+        st.info("AI summary was not generated. Try clicking **Analyze** again.")
     else:
         st.info("Start Ollama to enable AI-generated executive summaries.")
 
@@ -510,8 +648,8 @@ with tabs[1]:
             row = {"Line Item": label}
             for m in stmt.months:
                 v = item.monthly_values.get(m)
-                row[m] = f"${v:,.0f}" if v is not None else "—"
-            row["Annual Total"] = f"${item.annual_total:,.0f}" if item.annual_total else "—"
+                row[m] = f"${v:,.0f}" if v is not None else "N/A"
+            row["Annual Total"] = f"${item.annual_total:,.0f}" if item.annual_total else "N/A"
             rev_rows.append(row)
     if rev_rows:
         st.dataframe(pd.DataFrame(rev_rows).set_index("Line Item"), use_container_width=True)
@@ -546,24 +684,26 @@ with tabs[3]:
 
     ratio_rows = []
     for r in ratios.ratios.values():
-        lo = f"{r.benchmark_low*100:.0f}%"  if (r.benchmark_low  is not None and r.unit == "%") else (str(r.benchmark_low)  if r.benchmark_low  else "—")
-        hi = f"{r.benchmark_high*100:.0f}%" if (r.benchmark_high is not None and r.unit == "%") else (str(r.benchmark_high) if r.benchmark_high else "—")
+        lo = f"{r.benchmark_low*100:.0f}%"  if (r.benchmark_low  is not None and r.unit == "%") else (str(r.benchmark_low)  if r.benchmark_low  else "N/A")
+        hi = f"{r.benchmark_high*100:.0f}%" if (r.benchmark_high is not None and r.unit == "%") else (str(r.benchmark_high) if r.benchmark_high else "N/A")
         ratio_rows.append({
             "Metric":          r.label,
             "Value":           r.pct_display(),
             "Benchmark Low":   lo,
             "Benchmark High":  hi,
-            "Status": {"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, "—"),
+            "Status": {"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, "-"),
         })
     df_ratios = pd.DataFrame(ratio_rows)
 
     def _color_status(val):
-        return {"Good":    "background-color: #d4edda",
-                "Watch":   "background-color: #fff3cd",
-                "Concern": "background-color: #f8d7da"}.get(val, "")
+        return {
+            "Good":    "background-color: #d4edda; color: #155724;",
+            "Watch":   "background-color: #fff3cd; color: #856404;",
+            "Concern": "background-color: #f8d7da; color: #721c24;",
+        }.get(val, "")
 
     st.dataframe(
-        df_ratios.style.applymap(_color_status, subset=["Status"]),
+        df_ratios.style.map(_color_status, subset=["Status"]),
         use_container_width=True, hide_index=True,
     )
 
@@ -574,7 +714,7 @@ with tabs[3]:
             elif st.session_state.ai_pending:
                 st.caption("Generating… check back in a moment.")
             else:
-                st.info("Commentary was not generated — try clicking **Analyze** again.")
+                st.info("Commentary was not generated. Try clicking **Analyze** again.")
 
 
 # ── Tab 5: Anomalies ──────────────────────────────────────────────────────────
@@ -592,21 +732,21 @@ with tabs[4]:
         filtered    = [a for a in anomalies if a.severity in sev_filter]
         anomaly_pos = {id(a): i for i, a in enumerate(anomalies)}
 
-        st.caption(f"{len(filtered)} issue(s) shown")
+        st.caption(f"{len(filtered)} issues shown")
 
         for a in filtered:
             pos  = anomaly_pos[id(a)]
             icon = {"high": "🔴", "medium": "🟡", "low": "🔵"}.get(a.severity, "⚪")
             with st.expander(
-                f"{icon} [{a.severity.upper()}]  {a.line_item_label}  -  Cell {a.cell_ref}",
+                f"{icon} {a.line_item_label} (Cell {a.cell_ref})",
                 expanded=(a.severity == "high"),
             ):
                 st.markdown(f"**Category:** {a.category.replace('_', ' ').title()}")
-                st.markdown(f"**Description:** {a.description}")
+                st.markdown(f"**Description:** {_safe_md(a.description)}")
                 if a.value is not None:
                     st.markdown(f"**Detected value:** `{a.value:,.2f}`")
                 if a.expected:
-                    st.markdown(f"**Expected:** {a.expected}")
+                    st.markdown(f"**Expected:** {_safe_md(a.expected)}")
                 st.markdown(f"**Row:** {a.row_number}  ·  **Cell:** `{a.cell_ref}`")
 
                 if ai_ok:
@@ -645,10 +785,10 @@ with tabs[5]:
         trend_rows.append({
             "Metric":         s.label,
             "Direction":      f"{icon} {s.trend_direction.title()}",
-            "Overall Change": f"{s.overall_pct_change:+.1f}%" if s.overall_pct_change else "—",
-            "Peak Month":     s.peak_month   or "—",
-            "Trough Month":   s.trough_month or "—",
-            "Monthly Avg":    f"${s.avg_value:,.0f}" if s.avg_value else "—",
+            "Overall Change": f"{s.overall_pct_change:+.1f}%" if s.overall_pct_change else "N/A",
+            "Peak Month":     s.peak_month   or "N/A",
+            "Trough Month":   s.trough_month or "N/A",
+            "Monthly Avg":    f"${s.avg_value:,.0f}" if s.avg_value else "N/A",
         })
     st.dataframe(pd.DataFrame(trend_rows), use_container_width=True, hide_index=True)
 
@@ -656,7 +796,7 @@ with tabs[5]:
 # ── Tab 7: Chat ────────────────────────────────────────────────────────────────
 with tabs[6]:
     st.header("Chat with your Report")
-    st.caption("Ask any question about the financial data — the agent answers using real numbers from your statement.")
+    st.caption("Ask any question about the financial data. The agent answers using real numbers from your statement.")
 
     if not ai_ok:
         st.warning(
