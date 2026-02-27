@@ -351,17 +351,4 @@ def _build_context(
     for a in anomalies[:12]:
         lines.append(f"  [{a.severity.upper():<6}] {a.line_item_label:<35} ({a.cell_ref}): {a.description[:80]}")
 
-    # ── Full line-item monthly detail ─────────────────────────────────────────
-    lines += ["", "── FULL MONTHLY LINE-ITEM DETAIL (for specific lookups) ──────────────"]
-    for item in stmt.all_rows:
-        if item.is_header or not item.has_any_value():
-            continue
-        vals = "  ".join(
-            f"{m[:3]}:{v:,.0f}" if v is not None else f"{m[:3]}:—"
-            for m, v in item.monthly_values.items()
-        )
-        annual = f"  Total:{item.annual_total:,.0f}" if item.annual_total is not None else ""
-        acct = item.account_code or "TOTAL"
-        lines.append(f"  [{acct}] {item.label.strip():<45} {vals}{annual}")
-
     return "\n".join(lines)

@@ -629,30 +629,8 @@ with tabs[1]:
     st.header("Revenue Analysis")
 
     st.plotly_chart(charts.revenue_vs_opex(stmt), use_container_width=True)
-    st.plotly_chart(charts.revenue_waterfall(stmt), use_container_width=True)
     st.plotly_chart(charts.vacancy_rate_bar(stmt), use_container_width=True)
     st.plotly_chart(charts.noi_margin_trend(stmt), use_container_width=True)
-
-    st.subheader("Monthly Revenue Detail")
-    rev_rows = []
-    for key, label in [
-        ("gross_potential_rent", "Gross Potential Rent"),
-        ("vacancy_loss",         "Vacancy Loss"),
-        ("concession_loss",      "Concession Loss"),
-        ("net_rental_revenue",   "Net Rental Revenue"),
-        ("other_tenant_charges", "Other Tenant Charges"),
-        ("total_revenue",        "Total Revenue"),
-    ]:
-        item = stmt.get_figure(key)
-        if item:
-            row = {"Line Item": label}
-            for m in stmt.months:
-                v = item.monthly_values.get(m)
-                row[m] = f"${v:,.0f}" if v is not None else "N/A"
-            row["Annual Total"] = f"${item.annual_total:,.0f}" if item.annual_total else "N/A"
-            rev_rows.append(row)
-    if rev_rows:
-        st.dataframe(pd.DataFrame(rev_rows).set_index("Line Item"), use_container_width=True)
 
 
 # ── Tab 3: Expenses ────────────────────────────────────────────────────────────

@@ -273,8 +273,9 @@ def kpi_gauge(name: str, ratio_report: RatioReport) -> Optional[go.Figure]:
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=display_val,
-        number=dict(suffix="%" if r.unit == "%" else "x", valueformat=".1f"),
-        title=dict(text=r.label, font=dict(size=14)),
+        number=dict(suffix="%" if r.unit == "%" else "x", valueformat=".1f", font=dict(size=22)),
+        title=dict(text=r.label, font=dict(size=13)),
+        domain=dict(x=[0, 1], y=[0, 1]),
         gauge=dict(
             axis=dict(range=[0, max_val]),
             bar=dict(color=color),
@@ -290,7 +291,7 @@ def kpi_gauge(name: str, ratio_report: RatioReport) -> Optional[go.Figure]:
             ),
         ),
     ))
-    fig.update_layout(height=250, margin=dict(l=20, r=20, t=50, b=20), **{k: v for k, v in _LAYOUT.items() if k != "margin"})
+    fig.update_layout(height=280, margin=dict(l=30, r=30, t=60, b=30), **{k: v for k, v in _LAYOUT.items() if k != "margin"})
     return fig
 
 
