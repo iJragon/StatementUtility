@@ -372,9 +372,16 @@ if analyze_btn and uploaded:
                     tmp_path = tmp.name
                 stmt = parse_excel(tmp_path)
                 os.unlink(tmp_path)
+                st.session_state.stmt = stmt
+            except Exception as e:
+                st.error(f"Failed to parse spreadsheet: {e}")
+                st.stop()
 
-                # LLM fallback: identify any key figures the heuristic missed
-                if ai_ok:
+            # LLM fallback: identify any key figures the heuristic missed
+            # Runs outside the parse try/except so import errors here don't
+            # mask a genuine parse failure.
+            if ai_ok:
+                try:
                     from app.agents.parser_agent import LabelMapperAgent
                     from app.parser.excel_parser import KEY_FIGURE_PATTERNS, enrich_key_figures
                     missing = [k for k in KEY_FIGURE_PATTERNS if k not in stmt.key_figures]
@@ -387,11 +394,8 @@ if analyze_btn and uploaded:
                         )
                         if label_map:
                             enrich_key_figures(stmt, label_map)
-
-                st.session_state.stmt = stmt
-            except Exception as e:
-                st.error(f"Failed to parse spreadsheet: {e}")
-                st.stop()
+                except Exception:
+                    pass  # fallback failure is non-fatal; heuristic results stand
 
             st.write("Calculating financial ratios…")
             st.session_state.ratios = calculate_ratios(stmt)
