@@ -27,9 +27,7 @@ import sys
 import os
 import re
 import hashlib
-import pickle
 from datetime import datetime
-from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,52 +44,6 @@ from app.agents.chat_agent import ChatAgent
 from app.config import is_ai_available, MODEL_PROVIDER, OLLAMA_MODEL, ANTHROPIC_MODEL
 from app.utils.glossary import tt
 
-
-# ── Disk cache helpers ─────────────────────────────────────────────────────────
-CACHE_DIR = Path(__file__).parent.parent / ".statement_cache"
-
-
-def _disk_load_history():
-    entries = []
-    if not CACHE_DIR.exists():
-        return entries
-    for pkl_path in sorted(CACHE_DIR.glob("*.pkl"), key=lambda p: p.stat().st_mtime):
-        try:
-            with open(pkl_path, "rb") as f:
-                entry = pickle.load(f)
-            if isinstance(entry.get("analyzed_at"), str):
-                entry["analyzed_at"] = datetime.fromisoformat(entry["analyzed_at"])
-            entries.append(entry)
-        except Exception:
-            pass
-    return entries
-
-
-def _disk_save_entry(entry: dict):
-    CACHE_DIR.mkdir(exist_ok=True)
-    pkl_path = CACHE_DIR / f"{entry['file_hash']}.pkl"
-    try:
-        with open(pkl_path, "wb") as f:
-            pickle.dump(entry, f)
-    except Exception:
-        pass
-
-
-def _disk_delete_entry(file_hash: str):
-    pkl_path = CACHE_DIR / f"{file_hash}.pkl"
-    try:
-        pkl_path.unlink(missing_ok=True)
-    except Exception:
-        pass
-
-
-def _disk_clear_all():
-    if CACHE_DIR.exists():
-        for pkl_path in CACHE_DIR.glob("*.pkl"):
-            try:
-                pkl_path.unlink()
-            except Exception:
-                pass
 
 
 def _clean_meta(text: str) -> str:
@@ -140,7 +92,7 @@ def _safe_md(text: str) -> str:
 
 
 def _sync_ai_content():
-    """Write current AI session state back into the matching history entry and re-save to disk."""
+    """Sync current AI session state back into the matching in-memory history entry."""
     fh = st.session_state.file_hash
     if not fh:
         return
@@ -150,19 +102,17 @@ def _sync_ai_content():
             entry["ratio_commentary"]      = st.session_state.ratio_commentary
             entry["anomaly_explanations"]  = dict(st.session_state.anomaly_explanations)
             entry["chat_history"]          = list(st.session_state.chat_history)
-            _disk_save_entry(entry)
             break
 
 
 def _sync_chat_to_history():
-    """Persist the current chat history to disk after each exchange."""
+    """Sync current chat history back into the matching in-memory history entry."""
     fh = st.session_state.file_hash
     if not fh:
         return
     for entry in st.session_state.analysis_history:
         if entry["file_hash"] == fh:
             entry["chat_history"] = list(st.session_state.chat_history)
-            _disk_save_entry(entry)
             break
 
 
@@ -359,20 +309,10 @@ for key, default in {
     "anomaly_explanations": {},
     "file_hash": None,
     "analysis_history": [],
-    "_disk_history_loaded": False,
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
-
-# Load persisted history from disk once per session
-if not st.session_state._disk_history_loaded:
-    existing_hashes = {e["file_hash"] for e in st.session_state.analysis_history}
-    for entry in _disk_load_history():
-        if entry["file_hash"] not in existing_hashes:
-            st.session_state.analysis_history.append(entry)
-            existing_hashes.add(entry["file_hash"])
-    st.session_state._disk_history_loaded = True
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -509,7 +449,6 @@ if analyze_btn and uploaded:
         # Only run Phase 2 if AI content hasn't been generated yet for this file
         st.session_state.ai_pending           = ai_ok and not bool(prev_summary)
 
-        _disk_save_entry(history_entry)
         st.rerun()   # rerun so tabs populate immediately before Phase 2 starts
 
 
@@ -523,7 +462,6 @@ with st.sidebar:
     else:
         # Clear All
         if st.button("Clear All History", use_container_width=True):
-            _disk_clear_all()
             # If currently loaded file is in history, reset the main view too
             st.session_state.analysis_history = []
             st.session_state.stmt             = None
@@ -557,7 +495,6 @@ with st.sidebar:
                         st.rerun()
 
                 if del_col.button("✕", key=f"hist_del_{_real_i}", help="Remove from history"):
-                    _disk_delete_entry(_entry["file_hash"])
                     st.session_state.analysis_history.pop(_real_i)
                     # If we deleted the currently loaded file, clear the main view
                     if _is_cur:
