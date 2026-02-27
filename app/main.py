@@ -41,6 +41,7 @@ from app.analysis.trend_analyzer import analyze_trends
 from app.visualization import chart_builder as charts
 from app.agents.orchestrator import OrchestratorAgent
 from app.agents.chat_agent import ChatAgent
+from app.agents.viz_agent import VizAgent
 from app.config import is_ai_available, MODEL_PROVIDER, OLLAMA_MODEL, ANTHROPIC_MODEL
 from app.utils.glossary import tt
 
@@ -309,6 +310,7 @@ for key, default in {
     "anomaly_explanations": {},
     "file_hash": None,
     "analysis_history": [],
+    "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
 }.items():
     if key not in st.session_state:
@@ -370,6 +372,22 @@ if analyze_btn and uploaded:
                     tmp_path = tmp.name
                 stmt = parse_excel(tmp_path)
                 os.unlink(tmp_path)
+
+                # LLM fallback: identify any key figures the heuristic missed
+                if ai_ok:
+                    from app.agents.parser_agent import LabelMapperAgent
+                    from app.parser.excel_parser import KEY_FIGURE_PATTERNS, enrich_key_figures
+                    missing = [k for k in KEY_FIGURE_PATTERNS if k not in stmt.key_figures]
+                    if missing:
+                        st.write(f"AI resolving {len(missing)} non-standard label(s)...")
+                        mapper = LabelMapperAgent()
+                        label_map = mapper.map_labels(
+                            [row.label for row in stmt.all_rows if not row.is_header],
+                            missing,
+                        )
+                        if label_map:
+                            enrich_key_figures(stmt, label_map)
+
                 st.session_state.stmt = stmt
             except Exception as e:
                 st.error(f"Failed to parse spreadsheet: {e}")
@@ -590,6 +608,7 @@ tabs = st.tabs([
     "Anomalies",
     "Trends",
     "Chat",
+    "Custom Charts",
 ])
 
 
@@ -887,6 +906,53 @@ with tabs[6]:
                 st.session_state.chat_history.append({"role": "assistant", "content": full_response})
                 _sync_chat_to_history()
                 st.rerun()  # refresh so suggestion buttons update to exclude the just-asked question
+
+
+# ── Tab 8: Custom Charts ───────────────────────────────────────────────────────
+with tabs[7]:
+    st.header("Custom Charts")
+    st.caption(
+        "Describe any chart you want to see in plain English and the AI will generate it. "
+        "Example: \"Show payroll and utilities side by side by month\" or "
+        "\"Pie chart of annual expense breakdown.\""
+    )
+
+    if not ai_ok:
+        st.warning("AI is not available. Custom chart generation requires an AI connection.")
+    else:
+        with st.form("custom_chart_form", clear_on_submit=True):
+            user_request = st.text_input(
+                "What do you want to see?",
+                placeholder="e.g. Compare NOI margin and vacancy rate trends over the year",
+            )
+            submitted = st.form_submit_button("Generate Chart", type="primary", use_container_width=True)
+
+        if submitted and user_request.strip():
+            with st.spinner("Generating chart..."):
+                viz_agent = VizAgent()
+                fig, explanation = viz_agent.generate(user_request.strip(), stmt)
+            if fig is not None:
+                st.session_state.custom_charts.insert(0, {
+                    "request":     user_request.strip(),
+                    "explanation": explanation,
+                    "fig":         fig,
+                })
+            else:
+                st.error(f"Could not generate chart: {explanation}")
+
+        if st.session_state.custom_charts:
+            for i, entry in enumerate(st.session_state.custom_charts):
+                with st.expander(
+                    f"**{entry['request']}**",
+                    expanded=(i == 0),
+                ):
+                    if entry["explanation"]:
+                        st.caption(entry["explanation"])
+                    st.plotly_chart(entry["fig"], use_container_width=True)
+
+            if st.button("Clear all custom charts", key="clear_custom_charts"):
+                st.session_state.custom_charts = []
+                st.rerun()
 
 
 # ── Phase 2: AI generation (runs after tabs so all data tabs are visible first) ─

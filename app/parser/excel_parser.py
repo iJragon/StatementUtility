@@ -325,6 +325,46 @@ def _extract_metadata(raw: List[List[Any]], s: SheetStructure) -> Dict[str, str]
     return meta
 
 
+def enrich_key_figures(
+    stmt,
+    label_map: Dict[str, str],
+) -> None:
+    """
+    Fill gaps in stmt.key_figures using a mapping returned by LabelMapperAgent.
+
+    label_map: {semantic_name: row_label_as_identified_by_llm}
+
+    Mutates stmt.key_figures in-place.  Concepts already present are not
+    overwritten — heuristic matches take precedence.
+    """
+    for concept, target_label in label_map.items():
+        if concept in stmt.key_figures:
+            continue    # heuristic already found it
+        target_lower = target_label.lower().strip()
+        best = None
+        best_score = -1
+        for item in stmt.all_rows:
+            label_lower = item.label.lower().strip()
+            if label_lower != target_lower and target_lower not in label_lower:
+                continue
+            score = 10
+            if label_lower == target_lower:
+                score += 100
+            elif len(label_lower) > 0 and len(target_lower) / len(label_lower) > 0.8:
+                score += 50
+            if item.has_any_value() or item.annual_total is not None:
+                score += 20
+            if item.is_subtotal:
+                score += 15
+            if item.is_header:
+                score -= 30
+            if score > best_score:
+                best_score = score
+                best = item
+        if best is not None:
+            stmt.key_figures[concept] = best
+
+
 def _to_float(val: Any) -> Optional[float]:
     if val is None:
         return None
