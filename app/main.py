@@ -44,6 +44,7 @@ from app.visualization import chart_builder as charts
 from app.agents.orchestrator import OrchestratorAgent
 from app.agents.chat_agent import ChatAgent
 from app.config import is_ai_available, MODEL_PROVIDER, OLLAMA_MODEL, ANTHROPIC_MODEL
+from app.utils.glossary import tt
 
 
 # ── Disk cache helpers ─────────────────────────────────────────────────────────
@@ -268,6 +269,79 @@ header {visibility: hidden;}
 [data-testid="stChatMessage"] {
     border-radius: 12px;
     margin-bottom: 8px;
+}
+
+/* ── Financial term tooltips ── */
+.fin-term {
+    border-bottom: 1.5px dashed rgba(128,128,128,0.55);
+    cursor: help;
+    position: relative;
+    display: inline;
+}
+.fin-term::before {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2a3a;
+    color: #e8f4f8;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    white-space: normal;
+    width: 260px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 99999;
+    text-align: left;
+    font-weight: 400;
+    font-style: normal;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.fin-term::after {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #1e2a3a;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    z-index: 99999;
+    pointer-events: none;
+}
+.fin-term:hover::before,
+.fin-term:hover::after {
+    opacity: 1;
+}
+
+/* ── Custom KPI cards (tooltip-enabled metric labels) ── */
+.kpi-card {
+    border-radius: 12px;
+    padding: 20px 16px;
+    border: 1px solid rgba(128,128,128,0.2);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 4px;
+}
+.kpi-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(128,128,128,1);
+    margin-bottom: 6px;
+    position: relative;
+}
+.kpi-value {
+    font-size: 1.5rem;
+    font-weight: 700;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -591,15 +665,22 @@ with tabs[0]:
     st.caption(_caption)
 
     col1, col2, col3, col4, col5 = st.columns(5)
-    def _kpi(col, label, key):
+    def _kpi(col, label_html, key):
         v = stmt.annual(key)
-        col.metric(label, f"${abs(v):,.0f}" if v is not None else "N/A")
+        val = f"${abs(v):,.0f}" if v is not None else "N/A"
+        col.markdown(
+            f'<div class="kpi-card">'
+            f'<div class="kpi-label">{label_html}</div>'
+            f'<div class="kpi-value">{val}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-    _kpi(col1, "Total Revenue",        "total_revenue")
-    _kpi(col2, "Operating Expenses",   "total_operating_expenses")
-    _kpi(col3, "NOI",                  "noi")
-    _kpi(col4, "Net Income",           "net_income")
-    _kpi(col5, "Cash Flow",            "cash_flow")
+    _kpi(col1, tt("Total Revenue"),      "total_revenue")
+    _kpi(col2, tt("Operating Expenses"), "total_operating_expenses")
+    _kpi(col3, tt("NOI"),                "noi")
+    _kpi(col4, tt("Net Income"),         "net_income")
+    _kpi(col5, tt("Cash Flow"),          "cash_flow")
 
     st.divider()
 
@@ -621,7 +702,14 @@ with tabs[0]:
     st.subheader("Key Ratios at a Glance")
     ratio_cols = st.columns(4)
     for i, r in enumerate(list(ratios.ratios.values())[:8]):
-        ratio_cols[i % 4].metric(r.label, r.pct_display())
+        label_html = tt(r.label, key=r.name)
+        ratio_cols[i % 4].markdown(
+            f'<div class="kpi-card">'
+            f'<div class="kpi-label">{label_html}</div>'
+            f'<div class="kpi-value">{r.pct_display()}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
