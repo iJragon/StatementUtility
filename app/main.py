@@ -44,6 +44,7 @@ from app.agents.chat_agent import ChatAgent
 from app.agents.viz_agent import VizAgent
 from app.config import is_ai_available, MODEL_PROVIDER, OLLAMA_MODEL, ANTHROPIC_MODEL
 from app.utils.glossary import tt
+from app.utils import session_io
 
 
 
@@ -309,12 +310,72 @@ for key, default in {
     "ratio_commentary": "",
     "anomaly_explanations": {},
     "file_hash": None,
+    "file_bytes": None,        # raw Excel bytes for session export
     "analysis_history": [],
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
+    "dark_mode": True,         # True = dark (default), False = light
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
+
+# ── Light mode CSS (injected only when dark_mode is False) ──────────────────
+if not st.session_state.dark_mode:
+    st.markdown("""
+<style>
+/* ── Light mode background overrides ── */
+.stApp {
+    background-color: #f5f7fa !important;
+}
+section[data-testid="stSidebar"] > div:first-child {
+    background-color: #ffffff !important;
+}
+
+/* ── Light mode text overrides ── */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4,
+[data-testid="stCaptionContainer"] p,
+[data-testid="stWidgetLabel"] p,
+[data-testid="stText"],
+.stTabs [data-baseweb="tab"] {
+    color: #1a1a2e !important;
+}
+
+/* ── Light mode KPI cards ── */
+.kpi-card {
+    background-color: #ffffff !important;
+    border-color: rgba(0,0,0,0.12) !important;
+}
+.kpi-value { color: #1a1a2e !important; }
+.kpi-label { color: rgba(30,30,60,0.65) !important; }
+
+/* ── Light mode tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    background-color: #e8eaf0 !important;
+}
+.stTabs [aria-selected="true"] {
+    background-color: #ffffff !important;
+}
+
+/* ── Light mode expanders ── */
+[data-testid="stExpander"] {
+    background-color: #ffffff !important;
+}
+
+/* ── Tooltip: keep dark style regardless of mode (high contrast) ── */
+.fin-term::before {
+    background: #1e2a3a !important;
+    color: #e8f4f8 !important;
+}
+.fin-term::after {
+    border-top-color: #1e2a3a !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -352,6 +413,56 @@ with st.sidebar:
         use_container_width=True,
     )
     st.divider()
+
+    # ── Dark / Light mode toggle ───────────────────────────────────────────
+    # key="dark_mode" binds directly to st.session_state.dark_mode.
+    # No manual sync needed — Streamlit handles it on rerun.
+    st.toggle("🌙 Dark Mode", key="dark_mode")
+
+    st.divider()
+
+    # ── Session export ─────────────────────────────────────────────────────
+    if st.session_state.stmt is not None and st.session_state.file_bytes:
+        _stmt = st.session_state.stmt
+        _export_name = (
+            f"{_stmt.property_name.replace(' ', '_')[:30]}"
+            f"_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+        )
+        _export_bytes = session_io.export_session(
+            filename=_stmt.property_name,
+            file_bytes=st.session_state.file_bytes,
+            property_name=_stmt.property_name,
+            period=_stmt.period,
+            summary_text=st.session_state.summary_text,
+            ratio_commentary=st.session_state.ratio_commentary,
+            anomaly_explanations=dict(st.session_state.anomaly_explanations),
+            chat_history=list(st.session_state.chat_history),
+            custom_charts=list(st.session_state.custom_charts),
+        )
+        st.download_button(
+            "Export Session",
+            data=_export_bytes,
+            file_name=_export_name,
+            mime="application/json",
+            use_container_width=True,
+            help="Download your full session (file, AI summaries, chat, charts) as a JSON file you can import later.",
+        )
+
+    # ── Session import ─────────────────────────────────────────────────────
+    with st.expander("Import Session", expanded=False):
+        st.caption("Restore a previously exported session (.json).")
+        import_file = st.file_uploader(
+            "Choose session file",
+            type=["json"],
+            key="import_uploader",
+            label_visibility="collapsed",
+        )
+        if import_file is not None:
+            if st.button("Restore Session", use_container_width=True):
+                st.session_state["_import_bytes"] = import_file.read()
+                st.rerun()
+
+    st.divider()
     st.caption("Model provider: " + MODEL_PROVIDER)
 
 
@@ -363,6 +474,7 @@ if analyze_btn and uploaded:
     if file_hash == st.session_state.file_hash and not force_reanalyze:
         st.sidebar.success("Cached results loaded. Check **Force reanalyze** to recompute.")
     else:
+        st.session_state.file_bytes = file_data
         with st.status("Reading your statement…", expanded=True) as phase1_status:
             st.write("Parsing spreadsheet…")
             try:
@@ -446,6 +558,7 @@ if analyze_btn and uploaded:
         history_entry = {
             "filename":             uploaded.name,
             "file_hash":            file_hash,
+            "file_bytes":           file_data,
             "property_name":        stmt.property_name,
             "period":               stmt.period,
             "analyzed_at":          datetime.now(),
@@ -546,6 +659,7 @@ if "_load_history_idx" in st.session_state:
         st.session_state.ratio_commentary     = entry.get("ratio_commentary", "")
         st.session_state.anomaly_explanations = dict(entry.get("anomaly_explanations", {}))
         st.session_state.file_hash            = entry["file_hash"]
+        st.session_state.file_bytes           = entry.get("file_bytes")
         # Re-trigger AI Phase 2 if this entry was saved before AI ran
         st.session_state.ai_pending = ai_ok and not bool(entry.get("summary_text", ""))
         st.session_state.chat_history         = list(entry.get("chat_history", []))
@@ -556,6 +670,79 @@ if "_load_history_idx" in st.session_state:
             )
         st.session_state.chat_agent = chat_agent
         st.rerun()
+
+
+# ── Import session handler ─────────────────────────────────────────────────────
+if "_import_bytes" in st.session_state:
+    _raw = st.session_state.pop("_import_bytes")
+    try:
+        _imported = session_io.import_session(_raw)
+        _file_bytes = _imported["file_bytes"]
+        _file_hash  = hashlib.md5(_file_bytes).hexdigest()
+        with st.status("Restoring session…", expanded=True) as _imp_status:
+            st.write("Re-parsing spreadsheet…")
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as _tmp:
+                _tmp.write(_file_bytes)
+                _tmp_path = _tmp.name
+            _stmt = parse_excel(_tmp_path)
+            os.unlink(_tmp_path)
+
+            st.write("Rebuilding ratios and anomalies…")
+            _ratios    = calculate_ratios(_stmt)
+            _anomalies = detect_anomalies(_stmt)
+            _trends    = analyze_trends(_stmt)
+
+            st.write("Wiring chat agent…")
+            _chat_agent = ChatAgent()
+            if ai_ok:
+                _chat_agent.set_context(_stmt, _ratios, _anomalies, _trends)
+
+            # Restore session state
+            st.session_state.stmt                 = _stmt
+            st.session_state.ratios               = _ratios
+            st.session_state.anomalies            = _anomalies
+            st.session_state.trends               = _trends
+            st.session_state.file_bytes           = _file_bytes
+            st.session_state.file_hash            = _file_hash
+            st.session_state.chat_agent           = _chat_agent
+            st.session_state.summary_text         = _imported["summary_text"]
+            st.session_state.ratio_commentary     = _imported["ratio_commentary"]
+            st.session_state.anomaly_explanations = _imported["anomaly_explanations"]
+            st.session_state.chat_history         = _imported["chat_history"]
+            st.session_state.custom_charts        = _imported["custom_charts"]
+            st.session_state.ai_pending           = False
+
+            # Add to history
+            _history_entry = {
+                "filename":             _imported["filename"],
+                "file_hash":            _file_hash,
+                "file_bytes":           _file_bytes,
+                "property_name":        _stmt.property_name,
+                "period":               _stmt.period,
+                "analyzed_at":          datetime.now(),
+                "stmt":                 _stmt,
+                "ratios":               _ratios,
+                "anomalies":            _anomalies,
+                "trends":               _trends,
+                "summary_text":         _imported["summary_text"],
+                "ratio_commentary":     _imported["ratio_commentary"],
+                "anomaly_explanations": _imported["anomaly_explanations"],
+                "chat_history":         _imported["chat_history"],
+            }
+            _existing_imp = next(
+                (i for i, h in enumerate(st.session_state.analysis_history)
+                 if h["file_hash"] == _file_hash), None
+            )
+            if _existing_imp is not None:
+                st.session_state.analysis_history[_existing_imp] = _history_entry
+            else:
+                st.session_state.analysis_history.append(_history_entry)
+
+            _imp_status.update(label="Session restored!", state="complete", expanded=False)
+        st.rerun()
+    except Exception as _e:
+        st.error(f"Import failed: {_e}")
 
 
 # ── Main content ───────────────────────────────────────────────────────────────
@@ -610,7 +797,6 @@ tabs = st.tabs([
     "Expenses",
     "Financial Ratios",
     "Anomalies",
-    "Trends",
     "Chat",
     "Custom Charts",
 ])
@@ -670,6 +856,32 @@ with tabs[0]:
             f'</div>',
             unsafe_allow_html=True,
         )
+
+    st.divider()
+    with st.expander("Monthly Trends", expanded=False):
+        _avail_keys = list(trends.series.keys())
+        _selected = st.multiselect(
+            "Select metrics to compare",
+            options=_avail_keys,
+            default=_avail_keys[:4],
+            format_func=lambda k: trends.series[k].label,
+            key="exec_trend_select",
+        )
+        if _selected:
+            st.plotly_chart(charts.trend_comparison(trends, _selected), use_container_width=True)
+
+        _trend_rows = []
+        for _tkey, _ts in trends.series.items():
+            _icon = {"improving": "📈", "worsening": "📉", "stable": "➡️", "volatile": "〰️"}.get(_ts.trend_direction, "")
+            _trend_rows.append({
+                "Metric":         _ts.label,
+                "Direction":      f"{_icon} {_ts.trend_direction.title()}",
+                "Overall Change": f"{_ts.overall_pct_change:+.1f}%" if _ts.overall_pct_change else "N/A",
+                "Peak Month":     _ts.peak_month   or "N/A",
+                "Trough Month":   _ts.trough_month or "N/A",
+                "Monthly Avg":    f"${_ts.avg_value:,.0f}" if _ts.avg_value else "N/A",
+            })
+        st.dataframe(pd.DataFrame(_trend_rows), use_container_width=True, hide_index=True)
 
 
 # ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
@@ -742,6 +954,16 @@ with tabs[3]:
             else:
                 st.info("Commentary was not generated. Try clicking **Analyze** again.")
 
+    with st.expander("Ratio Definitions", expanded=False):
+        for _r in ratios.ratios.values():
+            _bench_lo = f"{_r.benchmark_low*100:.0f}%" if (_r.benchmark_low is not None and _r.unit == "%") else (f"{_r.benchmark_low:.2f}x" if _r.benchmark_low else "—")
+            _bench_hi = f"{_r.benchmark_high*100:.0f}%" if (_r.benchmark_high is not None and _r.unit == "%") else (f"{_r.benchmark_high:.2f}x" if _r.benchmark_high else "—")
+            st.markdown(
+                f"{tt(_r.label, key=_r.name)} &nbsp; `{_r.pct_display()}` &nbsp; "
+                f"<span style='font-size:0.8rem; opacity:0.65;'>Benchmark: {_bench_lo}–{_bench_hi}</span>",
+                unsafe_allow_html=True,
+            )
+
 
 # ── Tab 5: Anomalies ──────────────────────────────────────────────────────────
 with tabs[4]:
@@ -789,38 +1011,8 @@ with tabs[4]:
                             st.info(explanation)
 
 
-# ── Tab 6: Trends ─────────────────────────────────────────────────────────────
+# ── Tab 6: Chat ────────────────────────────────────────────────────────────────
 with tabs[5]:
-    st.header("Trend Analysis")
-
-    available_keys = list(trends.series.keys())
-    selected = st.multiselect(
-        "Select metrics to compare",
-        options=available_keys,
-        default=available_keys[:4],
-        format_func=lambda k: trends.series[k].label,
-    )
-    if selected:
-        st.plotly_chart(charts.trend_comparison(trends, selected), use_container_width=True)
-
-    st.divider()
-    st.subheader("Trend Summary")
-    trend_rows = []
-    for key, s in trends.series.items():
-        icon = {"improving": "📈", "worsening": "📉", "stable": "➡️", "volatile": "〰️"}.get(s.trend_direction, "")
-        trend_rows.append({
-            "Metric":         s.label,
-            "Direction":      f"{icon} {s.trend_direction.title()}",
-            "Overall Change": f"{s.overall_pct_change:+.1f}%" if s.overall_pct_change else "N/A",
-            "Peak Month":     s.peak_month   or "N/A",
-            "Trough Month":   s.trough_month or "N/A",
-            "Monthly Avg":    f"${s.avg_value:,.0f}" if s.avg_value else "N/A",
-        })
-    st.dataframe(pd.DataFrame(trend_rows), use_container_width=True, hide_index=True)
-
-
-# ── Tab 7: Chat ────────────────────────────────────────────────────────────────
-with tabs[6]:
     st.header("Chat with your Report")
     st.caption("Ask any question about the financial data. The agent answers using real numbers from your statement.")
 
@@ -912,8 +1104,8 @@ with tabs[6]:
                 st.rerun()  # refresh so suggestion buttons update to exclude the just-asked question
 
 
-# ── Tab 8: Custom Charts ───────────────────────────────────────────────────────
-with tabs[7]:
+# ── Tab 7: Custom Charts ───────────────────────────────────────────────────────
+with tabs[6]:
     st.header("Custom Charts")
     st.caption(
         "Describe any chart you want to see in plain English and the AI will generate it. "

@@ -168,6 +168,106 @@ GLOSSARY: dict = {
             "Formula: Cash Flow ÷ Total Revenue"
         )
     },
+
+    # ── Anomaly categories ────────────────────────────────────────────────────
+    "OUTLIER": {
+        "tip": (
+            "Outlier  - A value that deviates significantly from the monthly average "
+            "for that line item (typically more than 2 standard deviations). "
+            "May indicate a one-time charge, data entry error, or seasonal spike."
+        )
+    },
+    "SIGN_CHANGE": {
+        "tip": (
+            "Sign Change  - A line item that flips between positive and negative "
+            "across months. For operating expenses this is unusual and may indicate "
+            "a credit, correction, or misclassification."
+        )
+    },
+    "MISSING_DATA": {
+        "tip": (
+            "Missing Data  - One or more months have no value recorded for this "
+            "line item. Could be genuinely zero activity or a data extraction gap."
+        )
+    },
+    "FORMULA_MISMATCH": {
+        "tip": (
+            "Formula Mismatch  - The annual total does not match the sum of monthly "
+            "values. May indicate a rounding issue or a discrepancy in the source file."
+        )
+    },
+    "STRUCTURAL": {
+        "tip": (
+            "Structural Issue  - A problem with how data is organized in the sheet, "
+            "such as a missing subtotal row or an unexpectedly empty section."
+        )
+    },
+
+    # ── Trend directions ──────────────────────────────────────────────────────
+    "IMPROVING": {
+        "tip": (
+            "Improving  - The metric is moving in a favorable direction over the "
+            "period (e.g. revenue rising, expenses falling)."
+        )
+    },
+    "WORSENING": {
+        "tip": (
+            "Worsening  - The metric is moving in an unfavorable direction over "
+            "the period (e.g. revenue falling, expenses rising)."
+        )
+    },
+    "STABLE": {
+        "tip": (
+            "Stable  - The metric shows little month-over-month change. "
+            "Stability is generally positive for expense lines."
+        )
+    },
+    "VOLATILE": {
+        "tip": (
+            "Volatile  - The metric fluctuates significantly month to month "
+            "without a clear trend. May warrant investigation."
+        )
+    },
+
+    # ── Additional revenue / expense terms ────────────────────────────────────
+    "BAD_DEBT": {
+        "tip": (
+            "Bad Debt  - Rent that was owed but could not be collected and was "
+            "written off. High bad debt signals tenant credit risk. Benchmark: below 1% of revenue."
+        )
+    },
+    "REPLACEMENT_RESERVE": {
+        "tip": (
+            "Replacement Reserve  - Funds set aside each period to cover future "
+            "capital expenditures (appliances, roofing, HVAC). "
+            "Treated as an expense even though the cash may not leave immediately."
+        )
+    },
+    "MANAGEMENT_FEES": {
+        "tip": (
+            "Management Fees  - Fees paid to the property management company, "
+            "typically 4-8% of collected revenue. Included in controllable expenses."
+        )
+    },
+    "REAL_ESTATE_TAXES": {
+        "tip": (
+            "Real Estate Taxes  - Annual property tax assessed by local government. "
+            "A non-controllable expense — management cannot change the assessed value."
+        )
+    },
+    "INSURANCE": {
+        "tip": (
+            "Insurance  - Property and liability insurance premiums. "
+            "Non-controllable; set by the insurer based on property value and risk."
+        )
+    },
+    "UTILITIES": {
+        "tip": (
+            "Utilities  - Gas, electric, water, trash, and other utility costs "
+            "paid by the property (common areas, vacant units). "
+            "Partly controllable through conservation programs."
+        )
+    },
 }
 
 
