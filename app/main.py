@@ -95,11 +95,6 @@ def _safe_md(text: str) -> str:
 
 
 
-# Seed dark_mode before any UI so the CSS block below can read it on every run.
-if "dark_mode" not in st.session_state:
-    st.session_state["dark_mode"] = True   # dark on first load
-
-
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Statement Utility",
@@ -298,53 +293,17 @@ for key, default in {
     "file_bytes": None,        # raw Excel bytes for session export
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
-    # dark_mode seeded before page config above
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Theme CSS — always injected (both branches) to prevent layout shift ───────
-# Strategy: config.toml uses base="light" so Streamlit's own components render
-# correctly in light mode with zero overrides.  When dark_mode is on we inject
-# a comprehensive set of dark overrides on top of that light base.
-# ── Theme CSS ──────────────────────────────────────────────────────────────────
-# Strategy: config.toml uses base="dark" so ALL Streamlit components (file
-# uploader, checkbox, expander, etc.) render correctly in dark mode natively —
-# zero CSS overrides required.  The toggle switches to light mode via CSS only.
-_DARK_CSS = """
+# ── Custom KPI card colors (dark theme) ────────────────────────────────────────
+st.markdown("""
 <style>
-/* Dark mode is native (base="dark") — only custom elements need color. */
 .kpi-value { color: #ffffff; }
 .kpi-label { color: rgba(255,255,255,0.6); }
 </style>
-"""
-
-_LIGHT_CSS = """
-<style>
-/* Light mode: override dark base for main surfaces and custom elements. */
-.stApp { background-color: #f0f2f6 !important; }
-.stApp .main,
-.stApp [data-testid="block-container"] { background-color: #f0f2f6 !important; }
-.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stMarkdownContainer"] * { color: #31333f !important; }
-.stApp [data-testid="stHeading"] * { color: #31333f !important; }
-.stApp [data-testid="stCaptionContainer"] p { color: rgba(49,51,63,0.6) !important; }
-.stApp [data-testid="stWidgetLabel"] p,
-.stApp [data-testid="stWidgetLabel"] span { color: #31333f !important; }
-.stApp [data-testid="stCheckbox"] label,
-.stApp [data-testid="stCheckbox"] span { color: #31333f !important; }
-.stApp [data-testid="stToggle"] label,
-.stApp [data-testid="stToggle"] p { color: #31333f !important; }
-.stApp [data-testid="stExpander"] summary,
-.stApp [data-testid="stExpander"] summary span { color: #31333f !important; }
-.stApp .stTabs [data-baseweb="tab"] { color: #31333f !important; }
-.kpi-value { color: #31333f; }
-.kpi-label { color: rgba(49,51,63,0.65); }
-</style>
-"""
-
-st.markdown(_DARK_CSS if st.session_state.dark_mode else _LIGHT_CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -381,13 +340,6 @@ with st.sidebar:
         disabled=uploaded is None,
         use_container_width=True,
     )
-    st.divider()
-
-    # ── Dark / Light mode toggle ───────────────────────────────────────────
-    # key="dark_mode" binds directly to st.session_state.dark_mode.
-    # No manual sync needed — Streamlit handles it on rerun.
-    st.toggle("🌙 Dark Mode", key="dark_mode")
-
     st.divider()
 
     # ── Session export ─────────────────────────────────────────────────────
