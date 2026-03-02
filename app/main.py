@@ -95,6 +95,11 @@ def _safe_md(text: str) -> str:
 
 
 
+# Seed dark_mode before any UI so the CSS block below can read it on every run.
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = True   # dark on first load
+
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Statement Utility",
@@ -106,7 +111,10 @@ st.set_page_config(
 ai_ok      = is_ai_available()
 model_name = ANTHROPIC_MODEL if MODEL_PROVIDER == "anthropic" else OLLAMA_MODEL
 
-# ── Custom styles ───────────────────────────────────────────────────────────────
+# ── Custom styles ──────────────────────────────────────────────────────────────
+# Base CSS: layout/shape only — no colors, works in both light and dark.
+# Theme CSS: injected after session state init (always present in both branches
+# to avoid layout shift when toggling).
 st.markdown("""
 <style>
 /* ── Chrome ── */
@@ -290,73 +298,79 @@ for key, default in {
     "file_bytes": None,        # raw Excel bytes for session export
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
-    "dark_mode": True,         # True = dark (default), False = light
+    # dark_mode seeded before page config above
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Light mode CSS (injected only when dark_mode is False) ──────────────────
-if not st.session_state.dark_mode:
-    st.markdown("""
+# ── Theme CSS — always injected (both branches) to prevent layout shift ───────
+# Strategy: config.toml uses base="light" so Streamlit's own components render
+# correctly in light mode with zero overrides.  When dark_mode is on we inject
+# a comprehensive set of dark overrides on top of that light base.
+_DARK_CSS = """
 <style>
-/* ── Backgrounds ── */
-.stApp { background-color: #f0f2f6 !important; }
-section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
-[data-testid="stExpander"] { background-color: #ffffff !important; }
-[data-testid="stFileUploadDropzone"] { background-color: #e8eaf0 !important; border-color: rgba(49,51,63,0.25) !important; }
+/* ── Dark mode: backgrounds ── */
+.stApp { background-color: #0e1117 !important; }
+section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
+[data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; }
+[data-testid="stFileUploadDropzone"] { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(250,250,250,0.2) !important; }
+.stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
 
-/* ── Broad text: markdown, captions, labels, headings ── */
-[data-testid="stMarkdownContainer"],
+/* ── Dark mode: text ── */
 [data-testid="stMarkdownContainer"] *,
 [data-testid="stCaptionContainer"] p,
-[data-testid="stHeading"],
 [data-testid="stHeading"] *,
-.stMarkdown, .stMarkdown *,
 [data-testid="stText"],
 [data-testid="stWidgetLabel"] p,
-[data-testid="stWidgetLabel"] span { color: #1a1a2e !important; }
-
-/* ── File uploader inner text ── */
+[data-testid="stWidgetLabel"] span,
 [data-testid="stFileUploadDropzone"] *,
-[data-testid="stFileUploaderFileName"] { color: #1a1a2e !important; }
-
-/* ── Checkboxes, toggles, radio buttons ── */
+[data-testid="stFileUploaderFileName"],
 [data-testid="stCheckbox"] label,
 [data-testid="stCheckbox"] span,
 [data-testid="stToggle"] label,
 [data-testid="stToggle"] p,
 [data-testid="stToggle"] span,
-[data-baseweb="checkbox"] span,
-[data-baseweb="toggle"] label { color: #1a1a2e !important; }
-
-/* ── Toggle track: make the OFF state visible in light mode ── */
-[data-baseweb="toggle"] [role="checkbox"] { background-color: #c0c4d0 !important; }
-
-/* ── Expander header + chevron arrow ── */
 [data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary p,
-[data-testid="stExpander"] summary span { color: #1a1a2e !important; }
+[data-testid="stExpander"] summary span,
+[data-testid="stSelectbox"] label,
+[data-testid="stMultiSelect"] label,
+.stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.92) !important; }
+
+/* ── Dark mode: expander arrow SVG ── */
 [data-testid="stExpander"] summary svg,
-[data-testid="stExpander"] summary svg * { fill: #1a1a2e !important; stroke: #1a1a2e !important; }
+[data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
 
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] { background-color: #e0e2e8 !important; }
-.stTabs [data-baseweb="tab"] { color: #1a1a2e !important; }
-.stTabs [aria-selected="true"] { background-color: #ffffff !important; }
+/* ── Dark mode: sidebar collapse icon ── */
+[data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
 
-/* ── KPI cards ── */
-.kpi-card { background-color: #ffffff !important; border-color: rgba(0,0,0,0.12) !important; }
-.kpi-value { color: #1a1a2e !important; }
-.kpi-label { color: rgba(30,30,60,0.65) !important; }
+/* ── Dark mode: tabs ── */
+.stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
+.stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; }
 
-/* ── Sidebar dividers ── */
-[data-testid="stSidebar"] hr { border-color: rgba(0,0,0,0.12) !important; }
+/* ── Dark mode: buttons ── */
+.stButton > button:not([kind="primary"]) { border-color: rgba(250,250,250,0.25) !important; color: rgba(250,250,250,0.9) !important; }
 
-/* ── Tooltips: always dark for contrast ── */
-.fin-term::before { background: #1e2a3a !important; color: #e8f4f8 !important; }
-.fin-term::after  { border-top-color: #1e2a3a !important; }
+/* ── Dark mode: KPI cards ── */
+.kpi-card { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.1) !important; }
+.kpi-value { color: #ffffff !important; }
+.kpi-label { color: rgba(255,255,255,0.6) !important; }
+
+/* ── Dark mode: sidebar hr ── */
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+_LIGHT_CSS = """
+<style>
+/* Light mode: Streamlit's base="light" theme handles all components natively.
+   Only our custom elements need explicit colors. */
+.kpi-value { color: #31333f; }
+.kpi-label { color: rgba(49,51,63,0.65); }
+</style>
+"""
+
+st.markdown(_DARK_CSS if st.session_state.dark_mode else _LIGHT_CSS, unsafe_allow_html=True)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -953,18 +967,40 @@ with tabs[6]:
             )
             submitted = st.form_submit_button("Generate Chart", type="primary", use_container_width=True)
 
+        # Financial / chart keyword gate — reject nonsense before hitting the LLM.
+        _CHART_KEYWORDS = {
+            "show", "chart", "plot", "graph", "compare", "display", "visualize",
+            "line", "bar", "pie", "area", "scatter", "trend", "breakdown",
+            "revenue", "income", "expense", "cost", "profit", "loss", "noi", "cash",
+            "rent", "vacancy", "payroll", "utilities", "utility", "tax", "taxes",
+            "insurance", "management", "maintenance", "repair", "operating",
+            "debt", "service", "dscr", "oer", "margin", "rate", "ratio", "flow",
+            "monthly", "annual", "quarter", "month", "year", "total", "net", "gross",
+            "occupancy", "concession", "fee", "reserve", "percentage", "percent",
+            "jan", "feb", "mar", "apr", "may", "jun",
+            "jul", "aug", "sep", "oct", "nov", "dec",
+        }
+
         if submitted and user_request.strip():
-            with st.spinner("Generating chart..."):
-                viz_agent = VizAgent()
-                fig, explanation = viz_agent.generate(user_request.strip(), stmt)
-            if fig is not None:
-                st.session_state.custom_charts.insert(0, {
-                    "request":     user_request.strip(),
-                    "explanation": explanation,
-                    "fig":         fig,
-                })
+            _words = set(re.sub(r"[^a-z\s]", "", user_request.lower()).split())
+            if not _words & _CHART_KEYWORDS:
+                st.warning(
+                    "Please describe a financial metric or chart you'd like to see. "
+                    "For example: *\"Show NOI and revenue by month\"* or "
+                    "*\"Pie chart of annual expense breakdown.\"*"
+                )
             else:
-                st.error(f"Could not generate chart: {explanation}")
+                with st.spinner("Generating chart..."):
+                    viz_agent = VizAgent()
+                    fig, explanation = viz_agent.generate(user_request.strip(), stmt)
+                if fig is not None:
+                    st.session_state.custom_charts.insert(0, {
+                        "request":     user_request.strip(),
+                        "explanation": explanation,
+                        "fig":         fig,
+                    })
+                else:
+                    st.error(f"Could not generate chart: {explanation}")
 
         if st.session_state.custom_charts:
             for i, entry in enumerate(st.session_state.custom_charts):
