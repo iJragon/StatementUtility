@@ -297,24 +297,63 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Theme — read from URL param, default dark ──────────────────────────────────
-# Toggling rewrites config.toml and reloads the browser so Streamlit serves the
-# correct native theme (dark or light) from the very start of the session.
-# URL param ?theme=light|dark survives the reload and drives the toggle state.
-_CONF_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    ".streamlit", "config.toml",
-)
-_theme = st.query_params.get("theme", "dark")   # "dark" | "light"
-_is_dark = (_theme == "dark")
+# ── Dark mode toggle state ─────────────────────────────────────────────────────
+# Seeded before the sidebar so the CSS injection below reads the correct value
+# on the very first run.  base="light" in config.toml means light mode is 100%
+# native (no CSS needed).  Dark mode injects overrides for what CSS can control;
+# baseweb interactive widgets (file uploader, checkbox) stay light-themed from
+# Streamlit's perspective but everything around them is dark.
+if "dark_mode" not in st.session_state:
+    st.session_state["dark_mode"] = False
 
-# KPI card text colours — our custom elements that CSS can control
-st.markdown(
-    '<style>.kpi-value{color:#fff}.kpi-label{color:rgba(255,255,255,.6)}</style>'
-    if _is_dark else
-    '<style>.kpi-value{color:#31333f}.kpi-label{color:rgba(49,51,63,.65)}</style>',
-    unsafe_allow_html=True,
-)
+if st.session_state.dark_mode:
+    st.markdown("""
+<style>
+/* ── Dark mode CSS overrides ── */
+.stApp, .stApp .main,
+.stApp [data-testid="block-container"] { background-color: #0e1117 !important; }
+.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
+
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stMarkdownContainer"] * { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stHeading"] * { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stCaptionContainer"] p { color: rgba(250,250,250,0.65) !important; }
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stWidgetLabel"] span,
+.stApp [data-testid="stCheckbox"] label,
+.stApp [data-testid="stCheckbox"] span,
+.stApp [data-testid="stToggle"] label,
+.stApp [data-testid="stToggle"] p,
+.stApp [data-testid="stToggle"] span { color: rgba(250,250,250,0.92) !important; }
+
+.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
+.stApp .stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
+.stApp .stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; }
+
+.stApp [data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; }
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary * { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stExpander"] summary svg,
+.stApp [data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
+
+.stApp [data-testid="stSidebarCollapsedControl"] svg,
+.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
+.stApp [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
+
+.stApp .stButton > button:not([kind="primary"]) { color: rgba(250,250,250,0.9) !important; border-color: rgba(250,250,250,0.25) !important; }
+
+.kpi-value { color: #ffffff !important; }
+.kpi-label { color: rgba(255,255,255,0.6) !important; }
+</style>
+""", unsafe_allow_html=True)
+else:
+    st.markdown("""
+<style>
+/* Light mode: native Streamlit handles everything. Custom elements only. */
+.kpi-value { color: #31333f; }
+.kpi-label { color: rgba(49,51,63,0.65); }
+</style>
+""", unsafe_allow_html=True)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -354,28 +393,7 @@ with st.sidebar:
     st.divider()
 
     # ── Dark / Light mode toggle ───────────────────────────────────────────
-    # Each toggle flip rewrites config.toml and reloads the browser so the
-    # correct Streamlit native theme is applied from scratch — no CSS fighting.
-    _toggle_val = st.toggle("🌙 Dark Mode", value=_is_dark)
-    if _toggle_val != _is_dark:
-        _new_base = "dark" if _toggle_val else "light"
-        try:
-            with open(_CONF_PATH, "w", encoding="utf-8") as _f:
-                _f.write(
-                    f'[browser]\ngatherUsageStats = false\n\n'
-                    f'[theme]\nbase = "{_new_base}"\n'
-                )
-        except Exception:
-            pass
-        # Redirect browser → new ?theme= param → Streamlit restarts WebSocket
-        # with the freshly written config.toml as its theme.
-        import streamlit.components.v1 as _cv1
-        _cv1.html(
-            f'<script>window.parent.location.href = '
-            f'window.parent.location.pathname + "?theme={_new_base}";</script>',
-            height=1,
-        )
-        st.stop()
+    st.toggle("🌙 Dark Mode", key="dark_mode")
 
     st.divider()
 
