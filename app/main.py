@@ -309,39 +309,8 @@ if "dark_mode" not in st.session_state:
 if st.session_state.dark_mode:
     st.markdown("""
 <style>
-/* ── Dark mode CSS overrides ── */
-.stApp, .stApp .main,
-.stApp [data-testid="block-container"] { background-color: #0e1117 !important; }
-.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
-
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stMarkdownContainer"] * { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stHeading"] * { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stCaptionContainer"] p { color: rgba(250,250,250,0.65) !important; }
-.stApp [data-testid="stWidgetLabel"] p,
-.stApp [data-testid="stWidgetLabel"] span,
-.stApp [data-testid="stCheckbox"] label,
-.stApp [data-testid="stCheckbox"] span,
-.stApp [data-testid="stToggle"] label,
-.stApp [data-testid="stToggle"] p,
-.stApp [data-testid="stToggle"] span { color: rgba(250,250,250,0.92) !important; }
-
-.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
-.stApp .stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
-.stApp .stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; }
-
-.stApp [data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; }
-.stApp [data-testid="stExpander"] summary,
-.stApp [data-testid="stExpander"] summary * { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stExpander"] summary svg,
-.stApp [data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
-
-.stApp [data-testid="stSidebarCollapsedControl"] svg,
-.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
-.stApp [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
-
-.stApp .stButton > button:not([kind="primary"]) { color: rgba(250,250,250,0.9) !important; border-color: rgba(250,250,250,0.25) !important; }
-
+/* Dark mode: base="dark" handles all components natively (file uploader,
+   checkbox, expander, etc.). Only our custom HTML elements need colours. */
 .kpi-value { color: #ffffff !important; }
 .kpi-label { color: rgba(255,255,255,0.6) !important; }
 </style>
@@ -349,9 +318,41 @@ if st.session_state.dark_mode:
 else:
     st.markdown("""
 <style>
-/* Light mode: native Streamlit handles everything. Custom elements only. */
-.kpi-value { color: #31333f; }
-.kpi-label { color: rgba(49,51,63,0.65); }
+/* Light mode overrides on top of dark base. Interactive baseweb widgets
+   (file uploader, checkbox) will retain dark styling — accepted trade-off. */
+.stApp, .stApp .main,
+.stApp [data-testid="block-container"] { background-color: #f0f2f6 !important; }
+.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
+
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stMarkdownContainer"] * { color: #31333f !important; }
+.stApp [data-testid="stHeading"] * { color: #31333f !important; }
+.stApp [data-testid="stCaptionContainer"] p { color: rgba(49,51,63,0.65) !important; }
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stWidgetLabel"] span,
+.stApp [data-testid="stCheckbox"] label,
+.stApp [data-testid="stCheckbox"] span,
+.stApp [data-testid="stToggle"] label,
+.stApp [data-testid="stToggle"] p,
+.stApp [data-testid="stToggle"] span { color: #31333f !important; }
+
+.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(0,0,0,0.04) !important; }
+.stApp .stTabs [data-baseweb="tab"] { color: #31333f !important; }
+.stApp .stTabs [aria-selected="true"] { background-color: rgba(0,0,0,0.08) !important; }
+
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary * { color: #31333f !important; }
+.stApp [data-testid="stExpander"] summary svg,
+.stApp [data-testid="stExpander"] summary svg * { fill: #31333f !important; stroke: #31333f !important; }
+
+.stApp [data-testid="stSidebarCollapsedControl"] svg,
+.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: #31333f !important; }
+.stApp [data-testid="stSidebar"] hr { border-color: rgba(0,0,0,0.12) !important; }
+
+.stApp .stButton > button:not([kind="primary"]) { color: #31333f !important; border-color: rgba(0,0,0,0.2) !important; }
+
+.kpi-value { color: #31333f !important; }
+.kpi-label { color: rgba(49,51,63,0.65) !important; }
 </style>
 """, unsafe_allow_html=True)
 
