@@ -307,172 +307,42 @@ for key, default in {
 # Strategy: config.toml uses base="light" so Streamlit's own components render
 # correctly in light mode with zero overrides.  When dark_mode is on we inject
 # a comprehensive set of dark overrides on top of that light base.
+# ── Theme CSS ──────────────────────────────────────────────────────────────────
+# Strategy: config.toml uses base="dark" so ALL Streamlit components (file
+# uploader, checkbox, expander, etc.) render correctly in dark mode natively —
+# zero CSS overrides required.  The toggle switches to light mode via CSS only.
 _DARK_CSS = """
 <style>
-/* ══════════════════════════════════════════════════════════════════════
-   DARK MODE — all selectors prefixed with .stApp to guarantee higher
-   specificity than Streamlit's own injected CSS.  base="light" gives
-   us a clean light baseline; every element below must be explicitly
-   darkened.
-   ══════════════════════════════════════════════════════════════════════ */
-
-/* ── Main backgrounds ── */
-.stApp { background-color: #0e1117 !important; }
-.stApp .main,
-.stApp [data-testid="block-container"] { background-color: #0e1117 !important; }
-.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
-
-/* ── File uploader — target every nesting level ── */
-.stApp [data-testid="stFileUploader"],
-.stApp [data-testid="stFileUploadDropzone"],
-.stApp [data-testid="stFileUploadDropzone"] > div,
-.stApp [data-testid="stFileUploadDropzone"] > div > div {
-    background-color: #1e2333 !important;
-    border-color: rgba(250,250,250,0.2) !important;
-}
-.stApp [data-testid="stFileUploadDropzone"] small,
-.stApp [data-testid="stFileUploadDropzone"] span,
-.stApp [data-testid="stFileUploadDropzone"] p,
-.stApp [data-testid="stFileUploaderFileName"] { color: rgba(250,250,250,0.85) !important; }
-
-/* ── Checkbox — visual square + label ── */
-.stApp [data-baseweb="checkbox"] [role="checkbox"] {
-    background-color: rgba(255,255,255,0.1) !important;
-    border-color: rgba(250,250,250,0.45) !important;
-}
-.stApp [data-baseweb="checkbox"] [aria-checked="true"][role="checkbox"] {
-    background-color: #2ECC71 !important;
-    border-color: #2ECC71 !important;
-}
-.stApp [data-testid="stCheckbox"] label,
-.stApp [data-testid="stCheckbox"] span { color: rgba(250,250,250,0.92) !important; }
-
-/* ── Toggle ── */
-.stApp [data-testid="stToggle"] label,
-.stApp [data-testid="stToggle"] p,
-.stApp [data-testid="stToggle"] span { color: rgba(250,250,250,0.92) !important; }
-
-/* ── Text / markdown ── */
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stMarkdownContainer"] * { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stCaptionContainer"] p { color: rgba(250,250,250,0.65) !important; }
-.stApp [data-testid="stHeading"] * { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stText"] { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stWidgetLabel"] p,
-.stApp [data-testid="stWidgetLabel"] span { color: rgba(250,250,250,0.92) !important; }
-
-/* ── Expanders ── */
-.stApp [data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; border-color: rgba(255,255,255,0.1) !important; }
-.stApp [data-testid="stExpander"] summary,
-.stApp [data-testid="stExpander"] summary span,
-.stApp [data-testid="stExpander"] summary p { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-testid="stExpander"] summary svg,
-.stApp [data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
-
-/* ── Tabs ── */
-.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
-.stApp .stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
-.stApp .stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; color: rgba(250,250,250,0.95) !important; }
-
-/* ── Buttons ── */
-.stApp .stButton > button:not([kind="primary"]) {
-    border-color: rgba(250,250,250,0.25) !important;
-    color: rgba(250,250,250,0.9) !important;
-    background-color: transparent !important;
-}
-
-/* ── Text inputs / chat input ── */
-.stApp [data-baseweb="input"],
-.stApp [data-baseweb="base-input"],
-.stApp .stTextInput input,
-.stApp .stTextArea textarea {
-    background-color: #1e2333 !important;
-    color: rgba(250,250,250,0.92) !important;
-    border-color: rgba(250,250,250,0.2) !important;
-}
-.stApp [data-testid="stChatInput"] textarea,
-.stApp [data-testid="stChatInputContainer"] {
-    background-color: #1e2333 !important;
-    color: rgba(250,250,250,0.92) !important;
-    border-color: rgba(250,250,250,0.2) !important;
-}
-
-/* ── Select / multiselect ── */
-.stApp [data-baseweb="select"] > div { background-color: #1e2333 !important; border-color: rgba(250,250,250,0.2) !important; }
-.stApp [data-testid="stSelectbox"] label,
-.stApp [data-testid="stMultiSelect"] label { color: rgba(250,250,250,0.92) !important; }
-.stApp [data-baseweb="menu"] { background-color: #1e2333 !important; }
-.stApp [data-baseweb="menu"] [role="option"] { color: rgba(250,250,250,0.92) !important; }
-
-/* ── Sidebar icons / divider ── */
-.stApp [data-testid="stSidebarCollapsedControl"] svg,
-.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
-.stApp [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
-
-/* ── Forms ── */
-.stApp [data-testid="stForm"] { background-color: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.1) !important; }
-
-/* ── Status containers ── */
-.stApp [data-testid="stStatusContainer"] { background-color: rgba(255,255,255,0.04) !important; }
-
-/* ── Metric containers ── */
-.stApp [data-testid="metric-container"] { background-color: rgba(255,255,255,0.04) !important; }
-.stApp [data-testid="stMetricValue"] { color: rgba(250,250,250,0.95) !important; }
-.stApp [data-testid="stMetricLabel"] p { color: rgba(250,250,250,0.6) !important; }
-
-/* ── Chat messages ── */
-.stApp [data-testid="stChatMessage"] { background-color: rgba(255,255,255,0.04) !important; }
-
-/* ── KPI custom cards ── */
-.stApp .kpi-card { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.1) !important; }
-.stApp .kpi-value { color: #ffffff !important; }
-.stApp .kpi-label { color: rgba(255,255,255,0.6) !important; }
+/* Dark mode is native (base="dark") — only custom elements need color. */
+.kpi-value { color: #ffffff; }
+.kpi-label { color: rgba(255,255,255,0.6); }
 </style>
 """
 
 _LIGHT_CSS = """
 <style>
-/* Light mode: Streamlit's base="light" handles all native components.
-   Only our custom HTML elements need explicit colors. */
+/* Light mode: override dark base for main surfaces and custom elements. */
+.stApp { background-color: #f0f2f6 !important; }
+.stApp .main,
+.stApp [data-testid="block-container"] { background-color: #f0f2f6 !important; }
+.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stMarkdownContainer"] * { color: #31333f !important; }
+.stApp [data-testid="stHeading"] * { color: #31333f !important; }
+.stApp [data-testid="stCaptionContainer"] p { color: rgba(49,51,63,0.6) !important; }
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stWidgetLabel"] span { color: #31333f !important; }
+.stApp [data-testid="stCheckbox"] label,
+.stApp [data-testid="stCheckbox"] span { color: #31333f !important; }
+.stApp [data-testid="stToggle"] label,
+.stApp [data-testid="stToggle"] p { color: #31333f !important; }
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary span { color: #31333f !important; }
+.stApp .stTabs [data-baseweb="tab"] { color: #31333f !important; }
 .kpi-value { color: #31333f; }
 .kpi-label { color: rgba(49,51,63,0.65); }
 </style>
 """
-
-# JavaScript injected in dark mode to fix baseweb components that React re-styles
-# after our CSS block is applied (file uploader, checkbox square, expander body).
-# Runs via a MutationObserver so it re-applies whenever Streamlit re-renders.
-_DARK_JS_FIX = """<script>
-(function() {
-    var _t;
-    function fix() {
-        try {
-            var d = window.parent.document;
-            d.querySelectorAll(
-                '[data-testid="stFileUploadDropzone"],' +
-                '[data-testid="stFileUploadDropzone"] > div,' +
-                '[data-testid="stFileUploadDropzone"] > div > div'
-            ).forEach(function(e) {
-                e.style.setProperty('background-color', '#1e2333', 'important');
-                e.style.setProperty('border-color', 'rgba(250,250,250,0.2)', 'important');
-            });
-            d.querySelectorAll('[data-baseweb="checkbox"] [role="checkbox"]').forEach(function(e) {
-                e.style.setProperty('background-color', 'rgba(255,255,255,0.1)', 'important');
-                e.style.setProperty('border-color', 'rgba(250,250,250,0.45)', 'important');
-            });
-            d.querySelectorAll('[data-testid="stExpander"]').forEach(function(e) {
-                e.style.setProperty('background-color', 'rgba(255,255,255,0.04)', 'important');
-            });
-        } catch(ignored) {}
-    }
-    fix();
-    try {
-        new window.parent.MutationObserver(function() {
-            clearTimeout(_t); _t = setTimeout(fix, 50);
-        }).observe(window.parent.document.body, {childList: true, subtree: true});
-    } catch(ignored) {}
-})();
-</script>"""
 
 st.markdown(_DARK_CSS if st.session_state.dark_mode else _LIGHT_CSS, unsafe_allow_html=True)
 
@@ -563,12 +433,6 @@ with st.sidebar:
 
     st.divider()
     st.caption("Model provider: " + MODEL_PROVIDER)
-
-    # JS dark-mode fix: applied inside the sidebar so the 0-height iframe
-    # sits at the bottom of the sidebar column and doesn't displace main content.
-    if st.session_state.dark_mode:
-        import streamlit.components.v1 as _cv1
-        _cv1.html(_DARK_JS_FIX, height=0, scrolling=False)
 
 
 # ── Phase 1: fast analysis (parse + ratios + anomalies + trends) ───────────────
