@@ -309,62 +309,131 @@ for key, default in {
 # a comprehensive set of dark overrides on top of that light base.
 _DARK_CSS = """
 <style>
-/* ── Dark mode: backgrounds ── */
+/* ══════════════════════════════════════════════════════════════════════
+   DARK MODE — all selectors prefixed with .stApp to guarantee higher
+   specificity than Streamlit's own injected CSS.  base="light" gives
+   us a clean light baseline; every element below must be explicitly
+   darkened.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Main backgrounds ── */
 .stApp { background-color: #0e1117 !important; }
-section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
-[data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; }
-[data-testid="stFileUploadDropzone"] { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(250,250,250,0.2) !important; }
-.stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
+.stApp .main,
+.stApp [data-testid="block-container"] { background-color: #0e1117 !important; }
+.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #1a1e2e !important; }
 
-/* ── Dark mode: text ── */
-[data-testid="stMarkdownContainer"] *,
-[data-testid="stCaptionContainer"] p,
-[data-testid="stHeading"] *,
-[data-testid="stText"],
-[data-testid="stWidgetLabel"] p,
-[data-testid="stWidgetLabel"] span,
-[data-testid="stFileUploadDropzone"] *,
-[data-testid="stFileUploaderFileName"],
-[data-testid="stCheckbox"] label,
-[data-testid="stCheckbox"] span,
-[data-testid="stToggle"] label,
-[data-testid="stToggle"] p,
-[data-testid="stToggle"] span,
-[data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary span,
-[data-testid="stSelectbox"] label,
-[data-testid="stMultiSelect"] label,
-.stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.92) !important; }
+/* ── File uploader — target every nesting level ── */
+.stApp [data-testid="stFileUploader"],
+.stApp [data-testid="stFileUploadDropzone"],
+.stApp [data-testid="stFileUploadDropzone"] > div,
+.stApp [data-testid="stFileUploadDropzone"] > div > div {
+    background-color: #1e2333 !important;
+    border-color: rgba(250,250,250,0.2) !important;
+}
+.stApp [data-testid="stFileUploadDropzone"] small,
+.stApp [data-testid="stFileUploadDropzone"] span,
+.stApp [data-testid="stFileUploadDropzone"] p,
+.stApp [data-testid="stFileUploaderFileName"] { color: rgba(250,250,250,0.85) !important; }
 
-/* ── Dark mode: expander arrow SVG ── */
-[data-testid="stExpander"] summary svg,
-[data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
+/* ── Checkbox — visual square + label ── */
+.stApp [data-baseweb="checkbox"] [role="checkbox"] {
+    background-color: rgba(255,255,255,0.1) !important;
+    border-color: rgba(250,250,250,0.45) !important;
+}
+.stApp [data-baseweb="checkbox"] [aria-checked="true"][role="checkbox"] {
+    background-color: #2ECC71 !important;
+    border-color: #2ECC71 !important;
+}
+.stApp [data-testid="stCheckbox"] label,
+.stApp [data-testid="stCheckbox"] span { color: rgba(250,250,250,0.92) !important; }
 
-/* ── Dark mode: sidebar collapse icon ── */
-[data-testid="stSidebarCollapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
+/* ── Toggle ── */
+.stApp [data-testid="stToggle"] label,
+.stApp [data-testid="stToggle"] p,
+.stApp [data-testid="stToggle"] span { color: rgba(250,250,250,0.92) !important; }
 
-/* ── Dark mode: tabs ── */
-.stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
-.stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; }
+/* ── Text / markdown ── */
+.stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stMarkdownContainer"] * { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stCaptionContainer"] p { color: rgba(250,250,250,0.65) !important; }
+.stApp [data-testid="stHeading"] * { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stText"] { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stWidgetLabel"] span { color: rgba(250,250,250,0.92) !important; }
 
-/* ── Dark mode: buttons ── */
-.stButton > button:not([kind="primary"]) { border-color: rgba(250,250,250,0.25) !important; color: rgba(250,250,250,0.9) !important; }
+/* ── Expanders ── */
+.stApp [data-testid="stExpander"] { background-color: rgba(255,255,255,0.04) !important; border-color: rgba(255,255,255,0.1) !important; }
+.stApp [data-testid="stExpander"] summary,
+.stApp [data-testid="stExpander"] summary span,
+.stApp [data-testid="stExpander"] summary p { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-testid="stExpander"] summary svg,
+.stApp [data-testid="stExpander"] summary svg * { fill: rgba(250,250,250,0.92) !important; stroke: rgba(250,250,250,0.92) !important; }
 
-/* ── Dark mode: KPI cards ── */
-.kpi-card { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.1) !important; }
-.kpi-value { color: #ffffff !important; }
-.kpi-label { color: rgba(255,255,255,0.6) !important; }
+/* ── Tabs ── */
+.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(255,255,255,0.07) !important; }
+.stApp .stTabs [data-baseweb="tab"] { color: rgba(250,250,250,0.85) !important; }
+.stApp .stTabs [aria-selected="true"] { background-color: rgba(255,255,255,0.12) !important; color: rgba(250,250,250,0.95) !important; }
 
-/* ── Dark mode: sidebar hr ── */
-[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
+/* ── Buttons ── */
+.stApp .stButton > button:not([kind="primary"]) {
+    border-color: rgba(250,250,250,0.25) !important;
+    color: rgba(250,250,250,0.9) !important;
+    background-color: transparent !important;
+}
+
+/* ── Text inputs / chat input ── */
+.stApp [data-baseweb="input"],
+.stApp [data-baseweb="base-input"],
+.stApp .stTextInput input,
+.stApp .stTextArea textarea {
+    background-color: #1e2333 !important;
+    color: rgba(250,250,250,0.92) !important;
+    border-color: rgba(250,250,250,0.2) !important;
+}
+.stApp [data-testid="stChatInput"] textarea,
+.stApp [data-testid="stChatInputContainer"] {
+    background-color: #1e2333 !important;
+    color: rgba(250,250,250,0.92) !important;
+    border-color: rgba(250,250,250,0.2) !important;
+}
+
+/* ── Select / multiselect ── */
+.stApp [data-baseweb="select"] > div { background-color: #1e2333 !important; border-color: rgba(250,250,250,0.2) !important; }
+.stApp [data-testid="stSelectbox"] label,
+.stApp [data-testid="stMultiSelect"] label { color: rgba(250,250,250,0.92) !important; }
+.stApp [data-baseweb="menu"] { background-color: #1e2333 !important; }
+.stApp [data-baseweb="menu"] [role="option"] { color: rgba(250,250,250,0.92) !important; }
+
+/* ── Sidebar icons / divider ── */
+.stApp [data-testid="stSidebarCollapsedControl"] svg,
+.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: rgba(250,250,250,0.85) !important; }
+.stApp [data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.12) !important; }
+
+/* ── Forms ── */
+.stApp [data-testid="stForm"] { background-color: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.1) !important; }
+
+/* ── Status containers ── */
+.stApp [data-testid="stStatusContainer"] { background-color: rgba(255,255,255,0.04) !important; }
+
+/* ── Metric containers ── */
+.stApp [data-testid="metric-container"] { background-color: rgba(255,255,255,0.04) !important; }
+.stApp [data-testid="stMetricValue"] { color: rgba(250,250,250,0.95) !important; }
+.stApp [data-testid="stMetricLabel"] p { color: rgba(250,250,250,0.6) !important; }
+
+/* ── Chat messages ── */
+.stApp [data-testid="stChatMessage"] { background-color: rgba(255,255,255,0.04) !important; }
+
+/* ── KPI custom cards ── */
+.stApp .kpi-card { background-color: rgba(255,255,255,0.05) !important; border-color: rgba(255,255,255,0.1) !important; }
+.stApp .kpi-value { color: #ffffff !important; }
+.stApp .kpi-label { color: rgba(255,255,255,0.6) !important; }
 </style>
 """
 
 _LIGHT_CSS = """
 <style>
-/* Light mode: Streamlit's base="light" theme handles all components natively.
-   Only our custom elements need explicit colors. */
+/* Light mode: Streamlit's base="light" handles all native components.
+   Only our custom HTML elements need explicit colors. */
 .kpi-value { color: #31333f; }
 .kpi-label { color: rgba(49,51,63,0.65); }
 </style>
