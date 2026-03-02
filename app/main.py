@@ -93,29 +93,6 @@ def _safe_md(text: str) -> str:
     return text
 
 
-def _sync_ai_content():
-    """Sync current AI session state back into the matching in-memory history entry."""
-    fh = st.session_state.file_hash
-    if not fh:
-        return
-    for entry in st.session_state.analysis_history:
-        if entry["file_hash"] == fh:
-            entry["summary_text"]          = st.session_state.summary_text
-            entry["ratio_commentary"]      = st.session_state.ratio_commentary
-            entry["anomaly_explanations"]  = dict(st.session_state.anomaly_explanations)
-            entry["chat_history"]          = list(st.session_state.chat_history)
-            break
-
-
-def _sync_chat_to_history():
-    """Sync current chat history back into the matching in-memory history entry."""
-    fh = st.session_state.file_hash
-    if not fh:
-        return
-    for entry in st.session_state.analysis_history:
-        if entry["file_hash"] == fh:
-            entry["chat_history"] = list(st.session_state.chat_history)
-            break
 
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -311,7 +288,6 @@ for key, default in {
     "anomaly_explanations": {},
     "file_hash": None,
     "file_bytes": None,        # raw Excel bytes for session export
-    "analysis_history": [],
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
     "dark_mode": True,         # True = dark (default), False = light
@@ -323,57 +299,62 @@ for key, default in {
 if not st.session_state.dark_mode:
     st.markdown("""
 <style>
-/* ── Light mode background overrides ── */
-.stApp {
-    background-color: #f5f7fa !important;
-}
-section[data-testid="stSidebar"] > div:first-child {
-    background-color: #ffffff !important;
-}
+/* ── Backgrounds ── */
+.stApp { background-color: #f0f2f6 !important; }
+section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
+[data-testid="stExpander"] { background-color: #ffffff !important; }
+[data-testid="stFileUploadDropzone"] { background-color: #e8eaf0 !important; border-color: rgba(49,51,63,0.25) !important; }
 
-/* ── Light mode text overrides ── */
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] h1,
-[data-testid="stMarkdownContainer"] h2,
-[data-testid="stMarkdownContainer"] h3,
-[data-testid="stMarkdownContainer"] h4,
+/* ── Broad text: markdown, captions, labels, headings ── */
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] *,
 [data-testid="stCaptionContainer"] p,
-[data-testid="stWidgetLabel"] p,
+[data-testid="stHeading"],
+[data-testid="stHeading"] *,
+.stMarkdown, .stMarkdown *,
 [data-testid="stText"],
-.stTabs [data-baseweb="tab"] {
-    color: #1a1a2e !important;
-}
+[data-testid="stWidgetLabel"] p,
+[data-testid="stWidgetLabel"] span { color: #1a1a2e !important; }
 
-/* ── Light mode KPI cards ── */
-.kpi-card {
-    background-color: #ffffff !important;
-    border-color: rgba(0,0,0,0.12) !important;
-}
+/* ── File uploader inner text ── */
+[data-testid="stFileUploadDropzone"] *,
+[data-testid="stFileUploaderFileName"] { color: #1a1a2e !important; }
+
+/* ── Checkboxes, toggles, radio buttons ── */
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] span,
+[data-testid="stToggle"] label,
+[data-testid="stToggle"] p,
+[data-testid="stToggle"] span,
+[data-baseweb="checkbox"] span,
+[data-baseweb="toggle"] label { color: #1a1a2e !important; }
+
+/* ── Toggle track: make the OFF state visible in light mode ── */
+[data-baseweb="toggle"] [role="checkbox"] { background-color: #c0c4d0 !important; }
+
+/* ── Expander header + chevron arrow ── */
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span { color: #1a1a2e !important; }
+[data-testid="stExpander"] summary svg,
+[data-testid="stExpander"] summary svg * { fill: #1a1a2e !important; stroke: #1a1a2e !important; }
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] { background-color: #e0e2e8 !important; }
+.stTabs [data-baseweb="tab"] { color: #1a1a2e !important; }
+.stTabs [aria-selected="true"] { background-color: #ffffff !important; }
+
+/* ── KPI cards ── */
+.kpi-card { background-color: #ffffff !important; border-color: rgba(0,0,0,0.12) !important; }
 .kpi-value { color: #1a1a2e !important; }
 .kpi-label { color: rgba(30,30,60,0.65) !important; }
 
-/* ── Light mode tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    background-color: #e8eaf0 !important;
-}
-.stTabs [aria-selected="true"] {
-    background-color: #ffffff !important;
-}
+/* ── Sidebar dividers ── */
+[data-testid="stSidebar"] hr { border-color: rgba(0,0,0,0.12) !important; }
 
-/* ── Light mode expanders ── */
-[data-testid="stExpander"] {
-    background-color: #ffffff !important;
-}
-
-/* ── Tooltip: keep dark style regardless of mode (high contrast) ── */
-.fin-term::before {
-    background: #1e2a3a !important;
-    color: #e8f4f8 !important;
-}
-.fin-term::after {
-    border-top-color: #1e2a3a !important;
-}
+/* ── Tooltips: always dark for contrast ── */
+.fin-term::before { background: #1e2a3a !important; color: #e8f4f8 !important; }
+.fin-term::after  { border-top-color: #1e2a3a !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -536,140 +517,17 @@ if analyze_btn and uploaded:
                 expanded=False,
             )
 
-        # Preserve any previously-generated AI content for this file,
-        # unless the user explicitly requested a full reanalysis.
-        existing_idx = next(
-            (i for i, h in enumerate(st.session_state.analysis_history)
-             if h["file_hash"] == file_hash),
-            None,
-        )
-        existing_entry = st.session_state.analysis_history[existing_idx] if existing_idx is not None else {}
-        if force_reanalyze:
-            prev_summary      = ""
-            prev_commentary   = ""
-            prev_explanations = {}
-            prev_chat         = []
-        else:
-            prev_summary      = existing_entry.get("summary_text", "")
-            prev_commentary   = existing_entry.get("ratio_commentary", "")
-            prev_explanations = existing_entry.get("anomaly_explanations", {})
-            prev_chat         = existing_entry.get("chat_history", [])
-
-        history_entry = {
-            "filename":             uploaded.name,
-            "file_hash":            file_hash,
-            "file_bytes":           file_data,
-            "property_name":        stmt.property_name,
-            "period":               stmt.period,
-            "analyzed_at":          datetime.now(),
-            "stmt":                 stmt,
-            "ratios":               st.session_state.ratios,
-            "anomalies":            st.session_state.anomalies,
-            "trends":               st.session_state.trends,
-            "summary_text":         prev_summary,
-            "ratio_commentary":     prev_commentary,
-            "anomaly_explanations": prev_explanations,
-            "chat_history":         prev_chat,
-        }
-        if existing_idx is not None:
-            st.session_state.analysis_history[existing_idx] = history_entry
-        else:
-            st.session_state.analysis_history.append(history_entry)
-
-        # Restore AI content (may be empty if first time; Phase 2 will fill if so)
-        st.session_state.summary_text         = prev_summary
-        st.session_state.ratio_commentary     = prev_commentary
-        st.session_state.anomaly_explanations = dict(prev_explanations)
-        st.session_state.chat_history         = list(prev_chat)
-        # Only run Phase 2 if AI content hasn't been generated yet for this file
-        st.session_state.ai_pending           = ai_ok and not bool(prev_summary)
+        # New file or forced reanalysis — always clear AI content and chat.
+        st.session_state.summary_text         = ""
+        st.session_state.ratio_commentary     = ""
+        st.session_state.anomaly_explanations = {}
+        st.session_state.chat_history         = []
+        st.session_state.file_hash            = file_hash
+        st.session_state.ai_pending           = ai_ok
 
         st.rerun()   # rerun so tabs populate immediately before Phase 2 starts
 
 
-# ── Sidebar — history (rendered after pipeline so it sees any new entry) ───────
-with st.sidebar:
-    st.divider()
-    st.markdown("**History**")
-
-    if not st.session_state.analysis_history:
-        st.caption("No analyses yet.")
-    else:
-        # Clear All
-        if st.button("Clear All History", use_container_width=True):
-            # If currently loaded file is in history, reset the main view too
-            st.session_state.analysis_history = []
-            st.session_state.stmt             = None
-            st.session_state.ratios           = None
-            st.session_state.anomalies        = None
-            st.session_state.trends           = None
-            st.session_state.file_hash        = None
-            st.session_state.summary_text     = ""
-            st.session_state.ratio_commentary = ""
-            st.session_state.anomaly_explanations = {}
-            st.session_state.ai_pending       = False
-            st.rerun()
-
-        for _i, _entry in enumerate(reversed(st.session_state.analysis_history)):
-            _real_i   = len(st.session_state.analysis_history) - 1 - _i
-            _is_cur   = _entry["file_hash"] == st.session_state.file_hash
-            _label    = ("✅ " if _is_cur else "") + _clean_meta(_entry["property_name"])
-
-            with st.expander(_label, expanded=False):
-                st.caption(_entry["filename"])
-                st.caption(f"{_entry['period']}  ·  {_entry['analyzed_at'].strftime('%b %d  %H:%M')}")
-                st.caption(f"{len(_entry['anomalies'])} anomalies detected")
-
-                btn_col, del_col = st.columns([3, 1])
-
-                if _is_cur:
-                    btn_col.caption("Currently loaded")
-                else:
-                    if btn_col.button("Load", key=f"hist_load_{_real_i}", use_container_width=True):
-                        st.session_state["_load_history_idx"] = _real_i
-                        st.rerun()
-
-                if del_col.button("✕", key=f"hist_del_{_real_i}", help="Remove from history"):
-                    st.session_state.analysis_history.pop(_real_i)
-                    # If we deleted the currently loaded file, clear the main view
-                    if _is_cur:
-                        st.session_state.stmt             = None
-                        st.session_state.ratios           = None
-                        st.session_state.anomalies        = None
-                        st.session_state.trends           = None
-                        st.session_state.file_hash        = None
-                        st.session_state.summary_text     = ""
-                        st.session_state.ratio_commentary = ""
-                        st.session_state.anomaly_explanations = {}
-                        st.session_state.ai_pending       = False
-                    st.rerun()
-
-
-# ── History load handler ───────────────────────────────────────────────────────
-if "_load_history_idx" in st.session_state:
-    idx = st.session_state["_load_history_idx"]
-    del st.session_state["_load_history_idx"]
-    if 0 <= idx < len(st.session_state.analysis_history):
-        entry = st.session_state.analysis_history[idx]
-        st.session_state.stmt                 = entry["stmt"]
-        st.session_state.ratios               = entry["ratios"]
-        st.session_state.anomalies            = entry["anomalies"]
-        st.session_state.trends               = entry["trends"]
-        st.session_state.summary_text         = entry.get("summary_text", "")
-        st.session_state.ratio_commentary     = entry.get("ratio_commentary", "")
-        st.session_state.anomaly_explanations = dict(entry.get("anomaly_explanations", {}))
-        st.session_state.file_hash            = entry["file_hash"]
-        st.session_state.file_bytes           = entry.get("file_bytes")
-        # Re-trigger AI Phase 2 if this entry was saved before AI ran
-        st.session_state.ai_pending = ai_ok and not bool(entry.get("summary_text", ""))
-        st.session_state.chat_history         = list(entry.get("chat_history", []))
-        chat_agent = ChatAgent()
-        if ai_ok:
-            chat_agent.set_context(
-                entry["stmt"], entry["ratios"], entry["anomalies"], entry["trends"]
-            )
-        st.session_state.chat_agent = chat_agent
-        st.rerun()
 
 
 # ── Import session handler ─────────────────────────────────────────────────────
@@ -712,32 +570,6 @@ if "_import_bytes" in st.session_state:
             st.session_state.chat_history         = _imported["chat_history"]
             st.session_state.custom_charts        = _imported["custom_charts"]
             st.session_state.ai_pending           = False
-
-            # Add to history
-            _history_entry = {
-                "filename":             _imported["filename"],
-                "file_hash":            _file_hash,
-                "file_bytes":           _file_bytes,
-                "property_name":        _stmt.property_name,
-                "period":               _stmt.period,
-                "analyzed_at":          datetime.now(),
-                "stmt":                 _stmt,
-                "ratios":               _ratios,
-                "anomalies":            _anomalies,
-                "trends":               _trends,
-                "summary_text":         _imported["summary_text"],
-                "ratio_commentary":     _imported["ratio_commentary"],
-                "anomaly_explanations": _imported["anomaly_explanations"],
-                "chat_history":         _imported["chat_history"],
-            }
-            _existing_imp = next(
-                (i for i, h in enumerate(st.session_state.analysis_history)
-                 if h["file_hash"] == _file_hash), None
-            )
-            if _existing_imp is not None:
-                st.session_state.analysis_history[_existing_imp] = _history_entry
-            else:
-                st.session_state.analysis_history.append(_history_entry)
 
             _imp_status.update(label="Session restored!", state="complete", expanded=False)
         st.rerun()
@@ -1007,7 +839,6 @@ with tabs[4]:
                             with st.spinner("Analyzing…"):
                                 explanation = orchestrator.explain_anomaly(a, stmt)
                             st.session_state.anomaly_explanations[expl_key] = explanation
-                            _sync_ai_content()
                             st.info(explanation)
 
 
@@ -1034,12 +865,12 @@ with tabs[5]:
         if st.session_state.chat_history:
             if st.button("Clear chat history", key="clear_chat"):
                 st.session_state.chat_history = []
-                _sync_chat_to_history()
                 st.rerun()
 
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+                content = _safe_md(msg["content"]) if msg["role"] == "assistant" else msg["content"]
+                st.markdown(content)
 
         # ── Persistent suggestion pool — show up to 5 unasked questions ────────
         _ALL_SUGGESTIONS = [
@@ -1087,12 +918,12 @@ with tabs[5]:
                     try:
                         for chunk in chat_agent.ask(question, st.session_state.chat_history[:-1]):
                             full_response += chunk
-                            placeholder.markdown(full_response + "▌")
+                            placeholder.markdown(_safe_md(full_response) + "▌")
                     except Exception as e:
                         placeholder.error(f"Chat error: {e}")
                         full_response = f"_(Error: {e})_"
                     if full_response:
-                        placeholder.markdown(full_response)
+                        placeholder.markdown(_safe_md(full_response))
                     else:
                         placeholder.warning(
                             "No response received. "
@@ -1100,7 +931,6 @@ with tabs[5]:
                         )
 
                 st.session_state.chat_history.append({"role": "assistant", "content": full_response})
-                _sync_chat_to_history()
                 st.rerun()  # refresh so suggestion buttons update to exclude the just-asked question
 
 
@@ -1172,5 +1002,4 @@ if st.session_state.ai_pending:
         ai_status.update(label="AI insights ready!", state="complete", expanded=False)
 
     st.session_state.ai_pending = False
-    _sync_ai_content()
     st.rerun()   # rerun to populate Executive Summary and Ratio Commentary in their tabs

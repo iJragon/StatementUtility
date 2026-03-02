@@ -80,6 +80,11 @@ class VizAgent(BaseAgent):
             "(line for trends, bar for comparisons, area for cumulative, pie for breakdown).\n"
             "- yaxis_format: '$' for dollar amounts, '%' for percentages, "
             "'x' for ratios, '' for plain numbers.\n"
+            "- If the request is nonsensical, unrelated to financial data, or cannot be "
+            "fulfilled from the available data, return ONLY: "
+            '{\"error\": \"<brief explanation of why and what would help>\"}\n'
+            "- If the request is ambiguous or unclear, return ONLY: "
+            '{\"error\": \"<ask for clarification>\"}\n'
             "- Return ONLY valid JSON."
         )
 
@@ -98,11 +103,15 @@ class VizAgent(BaseAgent):
         if not spec:
             return None, "Could not parse a chart specification from the AI response."
 
+        # LLM signalled it cannot fulfil the request
+        if "error" in spec:
+            return None, spec["error"]
+
         fig = self._build_figure(spec, stmt)
         explanation = spec.get("explanation", "")
 
         if fig is None:
-            return None, "Chart built but no data could be resolved for the requested metrics."
+            return None, "No matching data found for the requested metrics. Try being more specific — for example: 'Show NOI and total revenue by month'."
 
         return fig, explanation
 
@@ -137,7 +146,7 @@ class VizAgent(BaseAgent):
         raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`")
         try:
             spec = json.loads(raw)
-            if isinstance(spec, dict) and "traces" in spec:
+            if isinstance(spec, dict) and ("traces" in spec or "error" in spec):
                 return spec
         except Exception:
             pass
@@ -146,7 +155,7 @@ class VizAgent(BaseAgent):
         if m:
             try:
                 spec = json.loads(m.group())
-                if isinstance(spec, dict) and "traces" in spec:
+                if isinstance(spec, dict) and ("traces" in spec or "error" in spec):
                     return spec
             except Exception:
                 pass
