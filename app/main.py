@@ -297,13 +297,24 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Custom KPI card colors (dark theme) ────────────────────────────────────────
-st.markdown("""
-<style>
-.kpi-value { color: #ffffff; }
-.kpi-label { color: rgba(255,255,255,0.6); }
-</style>
-""", unsafe_allow_html=True)
+# ── Theme — read from URL param, default dark ──────────────────────────────────
+# Toggling rewrites config.toml and reloads the browser so Streamlit serves the
+# correct native theme (dark or light) from the very start of the session.
+# URL param ?theme=light|dark survives the reload and drives the toggle state.
+_CONF_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ".streamlit", "config.toml",
+)
+_theme = st.query_params.get("theme", "dark")   # "dark" | "light"
+_is_dark = (_theme == "dark")
+
+# KPI card text colours — our custom elements that CSS can control
+st.markdown(
+    '<style>.kpi-value{color:#fff}.kpi-label{color:rgba(255,255,255,.6)}</style>'
+    if _is_dark else
+    '<style>.kpi-value{color:#31333f}.kpi-label{color:rgba(49,51,63,.65)}</style>',
+    unsafe_allow_html=True,
+)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
@@ -340,6 +351,32 @@ with st.sidebar:
         disabled=uploaded is None,
         use_container_width=True,
     )
+    st.divider()
+
+    # ── Dark / Light mode toggle ───────────────────────────────────────────
+    # Each toggle flip rewrites config.toml and reloads the browser so the
+    # correct Streamlit native theme is applied from scratch — no CSS fighting.
+    _toggle_val = st.toggle("🌙 Dark Mode", value=_is_dark)
+    if _toggle_val != _is_dark:
+        _new_base = "dark" if _toggle_val else "light"
+        try:
+            with open(_CONF_PATH, "w", encoding="utf-8") as _f:
+                _f.write(
+                    f'[browser]\ngatherUsageStats = false\n\n'
+                    f'[theme]\nbase = "{_new_base}"\n'
+                )
+        except Exception:
+            pass
+        # Redirect browser → new ?theme= param → Streamlit restarts WebSocket
+        # with the freshly written config.toml as its theme.
+        import streamlit.components.v1 as _cv1
+        _cv1.html(
+            f'<script>window.parent.location.href = '
+            f'window.parent.location.pathname + "?theme={_new_base}";</script>',
+            height=1,
+        )
+        st.stop()
+
     st.divider()
 
     # ── Session export ─────────────────────────────────────────────────────
