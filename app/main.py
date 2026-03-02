@@ -439,6 +439,41 @@ _LIGHT_CSS = """
 </style>
 """
 
+# JavaScript injected in dark mode to fix baseweb components that React re-styles
+# after our CSS block is applied (file uploader, checkbox square, expander body).
+# Runs via a MutationObserver so it re-applies whenever Streamlit re-renders.
+_DARK_JS_FIX = """<script>
+(function() {
+    var _t;
+    function fix() {
+        try {
+            var d = window.parent.document;
+            d.querySelectorAll(
+                '[data-testid="stFileUploadDropzone"],' +
+                '[data-testid="stFileUploadDropzone"] > div,' +
+                '[data-testid="stFileUploadDropzone"] > div > div'
+            ).forEach(function(e) {
+                e.style.setProperty('background-color', '#1e2333', 'important');
+                e.style.setProperty('border-color', 'rgba(250,250,250,0.2)', 'important');
+            });
+            d.querySelectorAll('[data-baseweb="checkbox"] [role="checkbox"]').forEach(function(e) {
+                e.style.setProperty('background-color', 'rgba(255,255,255,0.1)', 'important');
+                e.style.setProperty('border-color', 'rgba(250,250,250,0.45)', 'important');
+            });
+            d.querySelectorAll('[data-testid="stExpander"]').forEach(function(e) {
+                e.style.setProperty('background-color', 'rgba(255,255,255,0.04)', 'important');
+            });
+        } catch(ignored) {}
+    }
+    fix();
+    try {
+        new window.parent.MutationObserver(function() {
+            clearTimeout(_t); _t = setTimeout(fix, 50);
+        }).observe(window.parent.document.body, {childList: true, subtree: true});
+    } catch(ignored) {}
+})();
+</script>"""
+
 st.markdown(_DARK_CSS if st.session_state.dark_mode else _LIGHT_CSS, unsafe_allow_html=True)
 
 
@@ -528,6 +563,12 @@ with st.sidebar:
 
     st.divider()
     st.caption("Model provider: " + MODEL_PROVIDER)
+
+    # JS dark-mode fix: applied inside the sidebar so the 0-height iframe
+    # sits at the bottom of the sidebar column and doesn't displace main content.
+    if st.session_state.dark_mode:
+        import streamlit.components.v1 as _cv1
+        _cv1.html(_DARK_JS_FIX, height=0, scrolling=False)
 
 
 # ── Phase 1: fast analysis (parse + ratios + anomalies + trends) ───────────────
