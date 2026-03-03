@@ -297,62 +297,12 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ── Dark mode toggle state ─────────────────────────────────────────────────────
-# Seeded before the sidebar so the CSS injection below reads the correct value
-# on the very first run.  base="light" in config.toml means light mode is 100%
-# native (no CSS needed).  Dark mode injects overrides for what CSS can control;
-# baseweb interactive widgets (file uploader, checkbox) stay light-themed from
-# Streamlit's perspective but everything around them is dark.
-if "dark_mode" not in st.session_state:
-    st.session_state["dark_mode"] = False
-
-if st.session_state.dark_mode:
-    st.markdown("""
+st.markdown("""
 <style>
-/* Dark mode: base="dark" handles all components natively (file uploader,
-   checkbox, expander, etc.). Only our custom HTML elements need colours. */
-.kpi-value { color: #ffffff !important; }
-.kpi-label { color: rgba(255,255,255,0.6) !important; }
-</style>
-""", unsafe_allow_html=True)
-else:
-    st.markdown("""
-<style>
-/* Light mode overrides on top of dark base. Interactive baseweb widgets
-   (file uploader, checkbox) will retain dark styling — accepted trade-off. */
-.stApp, .stApp .main,
-.stApp [data-testid="block-container"] { background-color: #f0f2f6 !important; }
-.stApp section[data-testid="stSidebar"] > div:first-child { background-color: #ffffff !important; }
-
-.stApp [data-testid="stMarkdownContainer"],
-.stApp [data-testid="stMarkdownContainer"] * { color: #31333f !important; }
-.stApp [data-testid="stHeading"] * { color: #31333f !important; }
-.stApp [data-testid="stCaptionContainer"] p { color: rgba(49,51,63,0.65) !important; }
-.stApp [data-testid="stWidgetLabel"] p,
-.stApp [data-testid="stWidgetLabel"] span,
-.stApp [data-testid="stCheckbox"] label,
-.stApp [data-testid="stCheckbox"] span,
-.stApp [data-testid="stToggle"] label,
-.stApp [data-testid="stToggle"] p,
-.stApp [data-testid="stToggle"] span { color: #31333f !important; }
-
-.stApp .stTabs [data-baseweb="tab-list"] { background-color: rgba(0,0,0,0.04) !important; }
-.stApp .stTabs [data-baseweb="tab"] { color: #31333f !important; }
-.stApp .stTabs [aria-selected="true"] { background-color: rgba(0,0,0,0.08) !important; }
-
-.stApp [data-testid="stExpander"] summary,
-.stApp [data-testid="stExpander"] summary * { color: #31333f !important; }
-.stApp [data-testid="stExpander"] summary svg,
-.stApp [data-testid="stExpander"] summary svg * { fill: #31333f !important; stroke: #31333f !important; }
-
-.stApp [data-testid="stSidebarCollapsedControl"] svg,
-.stApp [data-testid="stSidebarCollapsedControl"] svg * { fill: #31333f !important; }
-.stApp [data-testid="stSidebar"] hr { border-color: rgba(0,0,0,0.12) !important; }
-
-.stApp .stButton > button:not([kind="primary"]) { color: #31333f !important; border-color: rgba(0,0,0,0.2) !important; }
-
-.kpi-value { color: #31333f !important; }
-.kpi-label { color: rgba(49,51,63,0.65) !important; }
+/* Dark mode: base="dark" in config.toml handles all native components.
+   Only custom HTML elements need explicit colours. */
+.kpi-value { color: #ffffff; }
+.kpi-label { color: rgba(255,255,255,0.6); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -391,11 +341,6 @@ with st.sidebar:
         disabled=uploaded is None,
         use_container_width=True,
     )
-    st.divider()
-
-    # ── Dark / Light mode toggle ───────────────────────────────────────────
-    st.toggle("🌙 Dark Mode", key="dark_mode")
-
     st.divider()
 
     # ── Session export ─────────────────────────────────────────────────────
