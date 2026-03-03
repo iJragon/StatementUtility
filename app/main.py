@@ -613,21 +613,34 @@ if st.session_state.ai_pending:
     )
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
-tabs = st.tabs([
+st.markdown(
+    '<p style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;'
+    'text-transform:uppercase;opacity:0.35;margin:0 0 2px;">Analysis</p>',
+    unsafe_allow_html=True,
+)
+atabs = st.tabs([
     "Executive Summary",
     "Revenue",
     "Expenses",
     "Financial Ratios",
     "Trends",
     "Anomalies",
+])
+
+st.markdown(
+    '<p style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;'
+    'text-transform:uppercase;opacity:0.35;margin:12px 0 2px;">Interactive</p>',
+    unsafe_allow_html=True,
+)
+itabs = st.tabs([
+    "Deal Details",
     "Chat",
     "Custom Charts",
-    "Deal Details",
 ])
 
 
 # ── Tab 1: Executive Summary ───────────────────────────────────────────────────
-with tabs[0]:
+with atabs[0]:
     st.header(_clean_meta(stmt.property_name))
     _period   = _clean_meta(stmt.period)
     _booktype = _clean_meta(stmt.book_type)
@@ -671,7 +684,7 @@ with tabs[0]:
 
 
 # ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
-with tabs[1]:
+with atabs[1]:
     st.header("Revenue")
     st.plotly_chart(charts.revenue_vs_opex(stmt), use_container_width=True)
     st.plotly_chart(charts.vacancy_rate_bar(stmt), use_container_width=True)
@@ -679,7 +692,7 @@ with tabs[1]:
 
 
 # ── Tab 3: Expenses ────────────────────────────────────────────────────────────
-with tabs[2]:
+with atabs[2]:
     st.header("Expenses")
     col_a, col_b = st.columns(2)
     with col_a:
@@ -692,7 +705,7 @@ with tabs[2]:
 
 
 # ── Tab 4: Financial Ratios ────────────────────────────────────────────────────
-with tabs[3]:
+with atabs[3]:
     st.header("Financial Ratios")
 
     gauge_keys = ["oer", "noi_margin", "vacancy_rate", "dscr"]
@@ -746,7 +759,7 @@ with tabs[3]:
 
 
 # ── Tab 5: Trends ─────────────────────────────────────────────────────────────
-with tabs[4]:
+with atabs[4]:
     st.header("Trends")
 
     _avail_keys = list(trends.series.keys())
@@ -775,7 +788,7 @@ with tabs[4]:
 
 
 # ── Tab 6: Anomalies ──────────────────────────────────────────────────────────
-with tabs[5]:
+with atabs[5]:
     st.header("Anomalies & Issues")
 
     if not anomalies:
@@ -820,7 +833,7 @@ with tabs[5]:
 
 
 # ── Tab 7: Chat ────────────────────────────────────────────────────────────────
-with tabs[6]:
+with itabs[1]:
     st.header("Chat with your Report")
     st.caption("Ask any question about the financial data. The agent answers using real numbers from your statement.")
 
@@ -912,7 +925,7 @@ with tabs[6]:
 
 
 # ── Tab 8: Custom Charts ───────────────────────────────────────────────────────
-with tabs[7]:
+with itabs[2]:
     st.header("Custom Charts")
     st.caption(
         "Describe any chart you want to see in plain English and the AI will generate it. "
@@ -981,7 +994,7 @@ with tabs[7]:
 
 
 # ── Tab 9: Deal Details ────────────────────────────────────────────────────────
-with tabs[8]:
+with itabs[0]:
     st.header("Deal Details")
     st.caption(
         "Enter acquisition and financing info to unlock investment-level metrics "
