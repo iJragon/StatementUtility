@@ -115,23 +115,27 @@ st.markdown("""
 /* ── Chrome ── */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-header {visibility: hidden;}
 [data-testid="stDeployButton"] {display: none;}
 [data-testid="stToolbarActions"] {display: none;}
 
-/* ── Sidebar toggle: restore visibility and modernize ── */
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="stSidebarCollapsedControl"] button {
-    visibility: visible !important;
-    display: flex !important;
-    opacity: 1 !important;
+/* Collapse the header to zero height but let its children (sidebar toggle)
+   overflow and remain clickable. This avoids visibility:hidden which
+   swallows the sidebar expand button when the sidebar is collapsed. */
+header {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
 }
+
+/* ── Sidebar toggle: modernize ── */
 [data-testid="stSidebarCollapsedControl"] {
     background: rgba(46,204,113,0.12) !important;
     border-radius: 0 10px 10px 0 !important;
     border: 1px solid rgba(46,204,113,0.25) !important;
     border-left: none !important;
     min-height: 72px !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     transition: background 0.2s ease !important;
