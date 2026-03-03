@@ -87,7 +87,7 @@ def detect_anomalies(stmt: FinancialStatement) -> List[Anomaly]:
             anomalies.append(Anomaly(
                 severity="low",
                 category="missing_data",
-                description="All monthly values are blank (None) for this account — no data was entered",
+                description="All monthly values are blank for this account. No data was entered.",
                 cell_ref=f"{first_col}{item.row_number}:{last_col}{item.row_number}",
                 row_number=item.row_number,
                 line_item_label=item.label,

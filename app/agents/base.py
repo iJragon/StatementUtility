@@ -116,7 +116,14 @@ def build_financial_context(
 
     lines += ["", "── FINANCIAL RATIOS ──"]
     for r in ratios.ratios.values():
-        lines.append(f"  {r.label}: {r.pct_display()} [{r.status.upper()}]")
+        if r.benchmark_low is not None and r.benchmark_high is not None:
+            if r.unit == "%":
+                bench = f"benchmark: {r.benchmark_low*100:.0f}%–{r.benchmark_high*100:.0f}%"
+            else:
+                bench = f"benchmark: {r.benchmark_low:.2f}x–{r.benchmark_high:.2f}x"
+        else:
+            bench = "no benchmark"
+        lines.append(f"  {r.label}: {r.pct_display()} [{r.status.upper()}] ({bench})")
 
     lines += ["", "── MONTHLY REVENUE ──"]
     rev_item = stmt.get_figure("total_revenue")

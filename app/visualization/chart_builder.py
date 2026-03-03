@@ -34,11 +34,31 @@ _LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(family="Inter, sans-serif", size=13),
-    margin=dict(l=40, r=40, t=90, b=40),  # t=90 gives breathing room between title and legend
+    margin=dict(l=40, r=40, t=90, b=40),
 )
 
 # Horizontal legend placed above the plot with enough space below the title
 _H_LEGEND = dict(orientation="h", yanchor="bottom", y=1.06, xanchor="center", x=0.5)
+
+
+def _wrap_title(text: str, max_chars: int = 22) -> str:
+    """Break a title into lines of at most max_chars, returning Plotly <br> HTML.
+    Ensures all gauge titles occupy the same number of lines so gauges align."""
+    words = text.split()
+    lines: list = []
+    current = ""
+    for word in words:
+        if current and len(current) + 1 + len(word) > max_chars:
+            lines.append(current)
+            current = word
+        else:
+            current = (current + " " + word).strip()
+    if current:
+        lines.append(current)
+    # Pad to 2 lines so every gauge title takes the same vertical space
+    while len(lines) < 2:
+        lines.insert(0, "")
+    return "<br>".join(lines)
 
 
 # ── 1. Revenue vs Operating Expenses — monthly line chart ─────────────────────
@@ -172,8 +192,10 @@ def vacancy_rate_bar(stmt: FinancialStatement) -> go.Figure:
         else:
             rates.append(None)
 
+    _vac_bench = (BENCHMARKS.get("vacancy_rate", {}).get("good") or (0, 0.07))[1] * 100
+
     bar_colors = [
-        COLORS["good"] if (r is not None and r <= 7) else COLORS["bad"]
+        COLORS["good"] if (r is not None and r <= _vac_bench) else COLORS["bad"]
         for r in rates
     ]
 
@@ -182,8 +204,8 @@ def vacancy_rate_bar(stmt: FinancialStatement) -> go.Figure:
         marker_color=bar_colors,
         hovertemplate="%{x}<br>Vacancy: %{y:.1f}%<extra></extra>",
     ))
-    fig.add_hline(y=7, line_dash="dash", line_color=COLORS["warning"],
-                  annotation_text="7% benchmark", annotation_position="top right")
+    fig.add_hline(y=_vac_bench, line_dash="dash", line_color=COLORS["warning"],
+                  annotation_text=f"{_vac_bench:.0f}% benchmark", annotation_position="top right")
     fig.update_layout(
         title="Monthly Vacancy Rate (% of Gross Potential Rent)",
         yaxis_ticksuffix="%",
@@ -214,8 +236,9 @@ def noi_margin_trend(stmt: FinancialStatement) -> go.Figure:
         fillcolor="rgba(52,152,219,0.15)",
         hovertemplate="%{x}<br>NOI Margin: %{y:.1f}%<extra></extra>",
     ))
-    fig.add_hline(y=40, line_dash="dash", line_color=COLORS["warning"],
-                  annotation_text="40% target", annotation_position="top right")
+    _noi_target = (BENCHMARKS.get("noi_margin", {}).get("good") or (0.40, 0.65))[0] * 100
+    fig.add_hline(y=_noi_target, line_dash="dash", line_color=COLORS["warning"],
+                  annotation_text=f"{_noi_target:.0f}% target", annotation_position="top right")
     fig.update_layout(
         title="Monthly NOI Margin",
         yaxis_ticksuffix="%",
@@ -245,7 +268,7 @@ def cashflow_vs_netincome(stmt: FinancialStatement) -> go.Figure:
         marker_color=COLORS["revenue"],
         hovertemplate="%{x}<br>Cash Flow: $%{y:,.0f}<extra></extra>",
     ))
-    fig.add_hline(y=0, line_color="#333", line_width=1)
+    fig.add_hline(y=0, line_color="rgba(128,128,128,0.4)", line_width=1)
     fig.update_layout(
         barmode="group",
         title="Monthly Net Income vs. Cash Flow",
@@ -274,24 +297,30 @@ def kpi_gauge(name: str, ratio_report: RatioReport) -> Optional[go.Figure]:
         mode="gauge+number",
         value=display_val,
         number=dict(suffix="%" if r.unit == "%" else "x", valueformat=".1f", font=dict(size=22)),
-        title=dict(text=r.label, font=dict(size=13)),
+        title=dict(text=_wrap_title(r.label), font=dict(size=13)),
         domain=dict(x=[0, 1], y=[0, 1]),
         gauge=dict(
-            axis=dict(range=[0, max_val]),
-            bar=dict(color=color),
+            axis=dict(range=[0, max_val], tickcolor="rgba(128,128,128,0.6)"),
+            bar=dict(color=color, thickness=0.5),
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
             steps=[
-                dict(range=[0, lo], color="#FADBD8"),
-                dict(range=[lo, hi], color="#D5F5E3"),
-                dict(range=[hi, max_val], color="#FADBD8"),
+                dict(range=[0, lo],       color="rgba(231,76,60,0.18)"),
+                dict(range=[lo, hi],      color="rgba(39,174,96,0.18)"),
+                dict(range=[hi, max_val], color="rgba(231,76,60,0.18)"),
             ],
             threshold=dict(
-                line=dict(color="black", width=2),
+                line=dict(color="rgba(255,255,255,0.7)", width=2),
                 thickness=0.75,
                 value=display_val,
             ),
         ),
     ))
-    fig.update_layout(height=280, margin=dict(l=30, r=30, t=60, b=30), **{k: v for k, v in _LAYOUT.items() if k != "margin"})
+    fig.update_layout(
+        height=260,
+        margin=dict(l=20, r=20, t=80, b=10),
+        **{k: v for k, v in _LAYOUT.items() if k != "margin"},
+    )
     return fig
 
 

@@ -13,17 +13,19 @@ from app.models.statement import FinancialStatement
 
 
 class OrchestratorAgent(BaseAgent):
-    SYSTEM_PROMPT = """You are a senior real estate financial analyst specializing in
-multi-family residential property investments. You receive structured financial
-statement data and produce clear, actionable executive summaries.
+    SYSTEM_PROMPT = """You are a senior real estate financial analyst.
 
-Your analysis style:
-- Lead with the most important insight (positive or negative)
-- Reference specific dollar amounts and percentages from the data
-- Flag risks an investor or property manager should investigate
-- Keep language clear and professional — no filler phrases
-- Structure your response with short paragraphs, not bullet lists
-- Be concise: 3–5 paragraphs maximum"""
+OUTPUT FORMAT — follow exactly, no exceptions:
+- **Label:** One to two sentence interpretation.
+- **Label:** One to two sentence interpretation.
+(3 to 5 bullets total, nothing else)
+
+STRICT RULES:
+- Your response MUST start with "- **" — no title, no property name, no heading, no preamble
+- Do NOT restate numbers already shown in the dashboard (revenue totals, NOI, etc.)
+- Every bullet interprets or explains something — WHY or SO WHAT, not just WHAT
+- If cash flow differs significantly from net income, dedicate one bullet to explaining why
+- No numbered lists, no section headers, no closing sentence after the last bullet"""
 
     def generate_executive_summary(
         self,
@@ -32,48 +34,30 @@ Your analysis style:
         anomalies: List[Anomaly],
         trend_report: TrendReport,
     ) -> Iterator[str]:
-        """Stream an executive summary paragraph by paragraph."""
+        """Stream a bullet-point executive summary."""
         context = build_financial_context(stmt, ratios, anomalies, trend_report)
-
         high_anomalies = [a for a in anomalies if a.severity == "high"]
-        bad_ratios = [r for r in ratios.flagged() if r.status == "bad"]
 
-        user_prompt = f"""Based on the financial data below, write an executive summary for
-{stmt.property_name} covering the period {stmt.period}.
-
-Focus on:
-1. Overall financial health (revenue, NOI, cash flow)
-2. Key ratios and how they compare to industry benchmarks
-3. Any significant concerns or anomalies (there are {len(high_anomalies)} high-severity issues)
-4. Month-over-month trends — what is improving and what is worsening
-5. One or two actionable recommendations
-
-{context}"""
+        user_prompt = (
+            "Example of correct output for a different property:\n"
+            "- **Cash flow divergence:** Despite positive NOI, cash flow is negative due to $618K "
+            "in balance sheet changes (prepaid expenses, escrow). This is an accounting timing "
+            "effect, not an operational loss.\n"
+            "- **Vacancy above benchmark:** At 9.2%, vacancy exceeds the 7% industry threshold; "
+            "the August spike suggests a lease renewal gap worth investigating.\n"
+            "- **Payroll outpacing revenue:** Payroll grew 18% while revenue grew only 6%, "
+            "so controllable expense discipline is slipping.\n\n"
+            f"Now write the same style summary for the property below. "
+            f"There are {len(high_anomalies)} high-severity anomalies, so call out the most "
+            "important one if it adds insight beyond what the numbers already show.\n\n"
+            f"{context}"
+        )
 
         messages = [
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user",   "content": user_prompt},
         ]
-        yield from self._stream(messages, temperature=0.4, max_tokens=800)
-
-    def generate_ratio_commentary(
-        self,
-        stmt: FinancialStatement,
-        ratios: RatioReport,
-    ) -> str:
-        """Return a short paragraph interpreting the ratio results."""
-        lines = [f"  {r.label}: {r.pct_display()} ({r.status})" for r in ratios.ratios.values()]
-        context = "\n".join(lines)
-
-        messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT},
-            {"role": "user", "content": (
-                f"Briefly interpret these financial ratios for {stmt.property_name} ({stmt.period}). "
-                "Comment on which ratios are strong, which are concerning, and what they suggest "
-                "about operational efficiency:\n\n" + context
-            )},
-        ]
-        return self._chat(messages, temperature=0.3, max_tokens=400)
+        yield from self._stream(messages, temperature=0.3, max_tokens=450)
 
     def explain_anomaly(self, anomaly: Anomaly, stmt: FinancialStatement) -> str:
         """Return a plain-English explanation of a single anomaly."""
