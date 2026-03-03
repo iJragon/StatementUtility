@@ -315,8 +315,6 @@ with st.sidebar:
     uploaded = st.file_uploader(
         "Upload Excel statement (.xlsx)",
         type=["xlsx", "xls"],
-        help="Supports any format. Files are identified by content, not filename. "
-             "Re-uploading the same file reuses cached results automatically.",
     )
 
     if not ai_ok:
