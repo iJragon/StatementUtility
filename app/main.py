@@ -304,14 +304,13 @@ for key, default in {
     "file_bytes": None,        # raw Excel bytes for session export
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
-    "deal_inputs": {           # Manual deal details (not in spreadsheet)
-        "purchase_price": 0.0,
-        "market_value":   0.0,
-        "units":          0,
-        "sqft":           0,
-        "loan_balance":   0.0,
-        "interest_rate":  0.0,
-    },
+    # Deal Details inputs — keyed individually so widget key= binding works without double-entry
+    "deal_purchase_price": 0.0,
+    "deal_market_value":   0.0,
+    "deal_units":          0,
+    "deal_sqft":           0,
+    "deal_loan_balance":   0.0,
+    "deal_interest_rate":  0.0,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -989,58 +988,34 @@ with tabs[8]:
         "that complement the operating data in your statement."
     )
 
-    di = st.session_state.deal_inputs
-
-    # ── Inputs ─────────────────────────────────────────────────────────────────
+    # ── Inputs — key= binds directly to session state, no manual read/write needed
     col_prop, col_fin = st.columns(2, gap="large")
 
     with col_prop:
         st.subheader("Property")
-        purchase_price = st.number_input(
-            "Purchase Price ($)", min_value=0.0, step=10_000.0,
-            value=float(di["purchase_price"]), format="%.0f",
-        )
-        market_value = st.number_input(
-            "Current Market Value ($)", min_value=0.0, step=10_000.0,
-            value=float(di["market_value"]), format="%.0f",
-            help="Leave 0 to use purchase price",
-        )
-        units = st.number_input(
-            "Number of Units", min_value=0, step=1, value=int(di["units"]),
-        )
-        sqft = st.number_input(
-            "Total Square Footage", min_value=0, step=500, value=int(di["sqft"]),
-        )
+        st.number_input("Purchase Price ($)", min_value=0.0, step=10_000.0,
+                        format="%.0f", key="deal_purchase_price")
+        st.number_input("Current Market Value ($)", min_value=0.0, step=10_000.0,
+                        format="%.0f", key="deal_market_value",
+                        help="Leave 0 to use purchase price")
+        st.number_input("Number of Units", min_value=0, step=1, key="deal_units")
+        st.number_input("Total Square Footage", min_value=0, step=500, key="deal_sqft")
 
     with col_fin:
         st.subheader("Financing")
-        loan_balance = st.number_input(
-            "Outstanding Loan Balance ($)", min_value=0.0, step=10_000.0,
-            value=float(di["loan_balance"]), format="%.0f",
-        )
-        interest_rate = st.number_input(
-            "Interest Rate (%)", min_value=0.0, max_value=30.0, step=0.125,
-            value=float(di["interest_rate"]), format="%.3f",
-        )
-
-    # Persist inputs across reruns
-    st.session_state.deal_inputs = {
-        "purchase_price": purchase_price,
-        "market_value":   market_value,
-        "units":          int(units),
-        "sqft":           int(sqft),
-        "loan_balance":   loan_balance,
-        "interest_rate":  interest_rate,
-    }
+        st.number_input("Outstanding Loan Balance ($)", min_value=0.0, step=10_000.0,
+                        format="%.0f", key="deal_loan_balance")
+        st.number_input("Interest Rate (%)", min_value=0.0, max_value=30.0,
+                        step=0.125, format="%.3f", key="deal_interest_rate")
 
     st.divider()
 
     # ── Calculated metrics ─────────────────────────────────────────────────────
-    _pp   = purchase_price
-    _mv   = market_value if market_value > 0 else purchase_price
-    _u    = int(units)
-    _sf   = int(sqft)
-    _loan = loan_balance
+    _pp   = st.session_state.deal_purchase_price
+    _mv   = st.session_state.deal_market_value or _pp
+    _u    = int(st.session_state.deal_units)
+    _sf   = int(st.session_state.deal_sqft)
+    _loan = st.session_state.deal_loan_balance
 
     _noi = stmt.annual("noi")
     _rev = stmt.annual("total_revenue")
