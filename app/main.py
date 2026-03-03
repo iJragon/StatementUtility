@@ -558,17 +558,17 @@ if stmt is None:
 if st.session_state.ai_pending:
     st.info(
         "All data tabs are ready to browse. "
-        "AI is generating the **Executive Summary** and **Ratio Commentary** below. "
-        "This usually takes 1 to 3 minutes depending on your model.",
+        "AI is generating the **Executive Summary** below. "
+        "This usually takes 30–90 seconds depending on your model.",
         icon="⏳",
     )
 
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
     "Executive Summary",
-    "Revenue",
-    "Expenses",
+    "Income Statement",
     "Financial Ratios",
+    "Trends",
     "Anomalies",
     "Chat",
     "Custom Charts",
@@ -617,59 +617,18 @@ with tabs[0]:
     else:
         st.info("Start Ollama to enable AI-generated executive summaries.")
 
-    st.divider()
-    st.subheader("Key Ratios at a Glance")
-    ratio_cols = st.columns(4)
-    for i, r in enumerate(list(ratios.ratios.values())[:8]):
-        label_html = tt(r.label, key=r.name)
-        ratio_cols[i % 4].markdown(
-            f'<div class="kpi-card">'
-            f'<div class="kpi-label">{label_html}</div>'
-            f'<div class="kpi-value">{r.pct_display()}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-    st.divider()
-    with st.expander("Monthly Trends", expanded=False):
-        _avail_keys = list(trends.series.keys())
-        _selected = st.multiselect(
-            "Select metrics to compare",
-            options=_avail_keys,
-            default=_avail_keys[:4],
-            format_func=lambda k: trends.series[k].label,
-            key="exec_trend_select",
-        )
-        if _selected:
-            st.plotly_chart(charts.trend_comparison(trends, _selected), use_container_width=True)
-
-        _trend_rows = []
-        for _tkey, _ts in trends.series.items():
-            _icon = {"improving": "📈", "worsening": "📉", "stable": "➡️", "volatile": "〰️"}.get(_ts.trend_direction, "")
-            _trend_rows.append({
-                "Metric":         _ts.label,
-                "Direction":      f"{_icon} {_ts.trend_direction.title()}",
-                "Overall Change": f"{_ts.overall_pct_change:+.1f}%" if _ts.overall_pct_change else "N/A",
-                "Peak Month":     _ts.peak_month   or "N/A",
-                "Trough Month":   _ts.trough_month or "N/A",
-                "Monthly Avg":    f"${_ts.avg_value:,.0f}" if _ts.avg_value else "N/A",
-            })
-        st.dataframe(pd.DataFrame(_trend_rows), use_container_width=True, hide_index=True)
 
 
-# ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
+# ── Tab 2: Income Statement ────────────────────────────────────────────────────
 with tabs[1]:
-    st.header("Revenue Analysis")
+    st.header("Income Statement")
 
+    st.subheader("Revenue")
     st.plotly_chart(charts.revenue_vs_opex(stmt), use_container_width=True)
     st.plotly_chart(charts.vacancy_rate_bar(stmt), use_container_width=True)
     st.plotly_chart(charts.noi_margin_trend(stmt), use_container_width=True)
 
-
-# ── Tab 3: Expenses ────────────────────────────────────────────────────────────
-with tabs[2]:
-    st.header("Expense Analysis")
-
+    st.subheader("Expenses")
     col_a, col_b = st.columns(2)
     with col_a:
         st.plotly_chart(charts.expense_breakdown_donut(stmt), use_container_width=True)
@@ -680,8 +639,8 @@ with tabs[2]:
     st.plotly_chart(charts.cashflow_vs_netincome(stmt), use_container_width=True)
 
 
-# ── Tab 4: Financial Ratios ────────────────────────────────────────────────────
-with tabs[3]:
+# ── Tab 3: Financial Ratios ────────────────────────────────────────────────────
+with tabs[2]:
     st.header("Financial Ratios")
 
     gauge_keys = ["oer", "noi_margin", "vacancy_rate", "dscr"]
@@ -718,15 +677,6 @@ with tabs[3]:
         use_container_width=True, hide_index=True,
     )
 
-    if ai_ok:
-        with st.expander("AI Ratio Commentary", expanded=True):
-            if st.session_state.ratio_commentary:
-                st.markdown(_safe_md(st.session_state.ratio_commentary))
-            elif st.session_state.ai_pending:
-                st.caption("Generating… check back in a moment.")
-            else:
-                st.info("Commentary was not generated. Try clicking **Analyze** again.")
-
     with st.expander("Ratio Definitions", expanded=False):
         for _r in ratios.ratios.values():
             _bench_lo = f"{_r.benchmark_low*100:.0f}%" if (_r.benchmark_low is not None and _r.unit == "%") else (f"{_r.benchmark_low:.2f}x" if _r.benchmark_low else "—")
@@ -736,6 +686,35 @@ with tabs[3]:
                 f"<span style='font-size:0.8rem; opacity:0.65;'>Benchmark: {_bench_lo}–{_bench_hi}</span>",
                 unsafe_allow_html=True,
             )
+
+
+# ── Tab 4: Trends ─────────────────────────────────────────────────────────────
+with tabs[3]:
+    st.header("Trends")
+
+    _avail_keys = list(trends.series.keys())
+    _selected = st.multiselect(
+        "Select metrics to compare",
+        options=_avail_keys,
+        default=_avail_keys[:4],
+        format_func=lambda k: trends.series[k].label,
+        key="trends_select",
+    )
+    if _selected:
+        st.plotly_chart(charts.trend_comparison(trends, _selected), use_container_width=True)
+
+    _trend_rows = []
+    for _tkey, _ts in trends.series.items():
+        _icon = {"improving": "📈", "worsening": "📉", "stable": "➡️", "volatile": "〰️"}.get(_ts.trend_direction, "")
+        _trend_rows.append({
+            "Metric":         _ts.label,
+            "Direction":      f"{_icon} {_ts.trend_direction.title()}",
+            "Overall Change": f"{_ts.overall_pct_change:+.1f}%" if _ts.overall_pct_change else "N/A",
+            "Peak Month":     _ts.peak_month   or "N/A",
+            "Trough Month":   _ts.trough_month or "N/A",
+            "Monthly Avg":    f"${_ts.avg_value:,.0f}" if _ts.avg_value else "N/A",
+        })
+    st.dataframe(pd.DataFrame(_trend_rows), use_container_width=True, hide_index=True)
 
 
 # ── Tab 5: Anomalies ──────────────────────────────────────────────────────────
@@ -957,10 +936,6 @@ if st.session_state.ai_pending:
         for chunk in orchestrator.generate_executive_summary(stmt, ratios, anomalies, trends):
             full_text += chunk
         st.session_state.summary_text = full_text
-
-        st.write("Writing ratio commentary…")
-        commentary = orchestrator.generate_ratio_commentary(stmt, ratios)
-        st.session_state.ratio_commentary = commentary
 
         ai_status.update(label="AI insights ready!", state="complete", expanded=False)
 
