@@ -252,7 +252,7 @@ GLOSSARY: dict = {
     "REAL_ESTATE_TAXES": {
         "tip": (
             "Real Estate Taxes  - Annual property tax assessed by local government. "
-            "A non-controllable expense — management cannot change the assessed value."
+            "A non-controllable expense. Management cannot change the assessed value."
         )
     },
     "INSURANCE": {

@@ -41,14 +41,14 @@ STRICT RULES:
         user_prompt = (
             "Example of correct output for a different property:\n"
             "- **Cash flow divergence:** Despite positive NOI, cash flow is negative due to $618K "
-            "in balance sheet changes (prepaid expenses, escrow) — this is an accounting timing "
+            "in balance sheet changes (prepaid expenses, escrow). This is an accounting timing "
             "effect, not an operational loss.\n"
             "- **Vacancy above benchmark:** At 9.2%, vacancy exceeds the 7% industry threshold; "
             "the August spike suggests a lease renewal gap worth investigating.\n"
-            "- **Payroll outpacing revenue:** Payroll grew 18% while revenue grew 6% — "
-            "controllable expense discipline is slipping.\n\n"
+            "- **Payroll outpacing revenue:** Payroll grew 18% while revenue grew only 6%, "
+            "so controllable expense discipline is slipping.\n\n"
             f"Now write the same style summary for the property below. "
-            f"There are {len(high_anomalies)} high-severity anomalies — call out the most "
+            f"There are {len(high_anomalies)} high-severity anomalies, so call out the most "
             "important one if it adds insight beyond what the numbers already show.\n\n"
             f"{context}"
         )

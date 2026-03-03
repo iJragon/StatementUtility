@@ -111,7 +111,7 @@ class VizAgent(BaseAgent):
         explanation = spec.get("explanation", "")
 
         if fig is None:
-            return None, "No matching data found for the requested metrics. Try being more specific — for example: 'Show NOI and total revenue by month'."
+            return None, "No matching data found for the requested metrics. Try being more specific, for example: 'Show NOI and total revenue by month'."
 
         return fig, explanation
 

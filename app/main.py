@@ -560,7 +560,7 @@ if stmt is None:
           <div style="font-size:1.3rem; margin-bottom:10px;">🤖</div>
           <div style="font-weight:600; font-size:0.92rem; margin-bottom:5px;">AI Executive Summary</div>
           <div style="font-size:0.8rem; opacity:0.5; line-height:1.55;">
-            Interpretive bullet-point insights from a local LLM — explains the why, not just the what.
+            Interpretive bullet-point insights from a local LLM. Explains the why, not just the what.
           </div>
         </div>
         <div style="padding:22px; border-radius:12px;
