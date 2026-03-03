@@ -132,8 +132,8 @@ header {
 
 /* ── Main container ── */
 .main .block-container {
-    padding-top: 1.5rem;
-    padding-bottom: 3rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
     max-width: 1400px;
 }
 
@@ -528,7 +528,8 @@ trends    = st.session_state.trends
 
 if stmt is None:
     st.markdown("""
-    <div style="max-width:720px; margin:80px auto 0; padding:0 24px; text-align:center;">
+    <div style="height:calc(100vh - 3rem); display:flex; align-items:center; justify-content:center; padding:0 24px;">
+    <div style="max-width:720px; width:100%; text-align:center;">
 
       <div style="margin-bottom:40px;">
         <div style="font-size:0.75rem; font-weight:700; letter-spacing:0.14em;
@@ -546,7 +547,7 @@ if stmt is None:
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;
-                  text-align:left; margin-bottom:48px;">
+                  text-align:left; margin:24px 0;">
         <div style="padding:22px; border-radius:12px;
                     border:1px solid rgba(128,128,128,0.15);
                     background:rgba(128,128,128,0.04);">
@@ -589,6 +590,7 @@ if stmt is None:
         ← Upload a statement in the sidebar to get started
       </p>
 
+    </div>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
