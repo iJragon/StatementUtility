@@ -128,25 +128,33 @@ header {
     overflow: visible !important;
 }
 
-/* ── Sidebar toggle: modernize ── */
+/* ── Sidebar toggle: centered, modernized ── */
 [data-testid="stSidebarCollapsedControl"] {
-    background: rgba(46,204,113,0.12) !important;
-    border-radius: 0 10px 10px 0 !important;
-    border: 1px solid rgba(46,204,113,0.25) !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 0 !important;
+    transform: translateY(-50%) !important;
+    z-index: 999 !important;
+    width: 28px !important;
+    height: 88px !important;
+    background: rgba(46,204,113,0.13) !important;
+    border-radius: 0 12px 12px 0 !important;
+    border: 1px solid rgba(46,204,113,0.3) !important;
     border-left: none !important;
-    min-height: 72px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    transition: background 0.2s ease !important;
+    cursor: pointer !important;
+    transition: background 0.2s ease, width 0.2s ease !important;
 }
 [data-testid="stSidebarCollapsedControl"]:hover {
-    background: rgba(46,204,113,0.24) !important;
+    background: rgba(46,204,113,0.26) !important;
+    width: 34px !important;
 }
 [data-testid="stSidebarCollapsedControl"] svg {
     fill: #2ECC71 !important;
-    width: 18px !important;
-    height: 18px !important;
+    width: 16px !important;
+    height: 16px !important;
 }
 
 /* ── Main container ── */
