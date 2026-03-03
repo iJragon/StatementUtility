@@ -119,6 +119,22 @@ header {visibility: hidden;}
 [data-testid="stDeployButton"] {display: none;}
 [data-testid="stToolbarActions"] {display: none;}
 
+/* ── Sidebar toggle: restore visibility and modernize ── */
+[data-testid="stSidebarCollapsedControl"] {
+    visibility: visible !important;
+    background: rgba(46,204,113,0.1) !important;
+    border-radius: 0 8px 8px 0 !important;
+    border: 1px solid rgba(46,204,113,0.2) !important;
+    border-left: none !important;
+    transition: background 0.2s ease !important;
+}
+[data-testid="stSidebarCollapsedControl"]:hover {
+    background: rgba(46,204,113,0.22) !important;
+}
+[data-testid="stSidebarCollapsedControl"] svg {
+    fill: #2ECC71 !important;
+}
+
 /* ── Main container ── */
 .main .block-container {
     padding-top: 1.5rem;
