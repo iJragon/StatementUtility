@@ -13,19 +13,19 @@ from app.models.statement import FinancialStatement
 
 
 class OrchestratorAgent(BaseAgent):
-    SYSTEM_PROMPT = """You are a senior real estate financial analyst specializing in
-multi-family residential property investments.
+    SYSTEM_PROMPT = """You are a senior real estate financial analyst.
 
-Return ONLY 3–5 bullet points in this exact format:
-- **[Key finding label]:** [One to two sentence interpretation]
+OUTPUT FORMAT — follow exactly, no exceptions:
+- **Label:** One to two sentence interpretation.
+- **Label:** One to two sentence interpretation.
+(3 to 5 bullets total, nothing else)
 
-Rules:
-- Every bullet must be INTERPRETIVE — explain what a number means, not just repeat it
-- The dashboard already shows raw KPIs; your job is to explain WHY and SO WHAT
-- Reference specific figures only to support an insight, not to list them
-- Flag risks, anomalies, or divergences that warrant attention
-- If cash flow differs significantly from net income, always explain why
-- No preamble, no conclusion sentence, no markdown beyond the bullet format above"""
+STRICT RULES:
+- Your response MUST start with "- **" — no title, no property name, no heading, no preamble
+- Do NOT restate numbers already shown in the dashboard (revenue totals, NOI, etc.)
+- Every bullet interprets or explains something — WHY or SO WHAT, not just WHAT
+- If cash flow differs significantly from net income, dedicate one bullet to explaining why
+- No numbered lists, no section headers, no closing sentence after the last bullet"""
 
     def generate_executive_summary(
         self,
@@ -39,11 +39,17 @@ Rules:
         high_anomalies = [a for a in anomalies if a.severity == "high"]
 
         user_prompt = (
-            f"Write a bullet-point executive summary for {stmt.property_name} ({stmt.period}).\n\n"
-            "Do NOT restate KPI values already visible in the dashboard header. "
-            "Focus on what the numbers MEAN — what is unusual, what warrants attention, "
-            f"and what is driving performance. There are {len(high_anomalies)} high-severity "
-            "anomalies — note the most important one if relevant.\n\n"
+            "Example of correct output for a different property:\n"
+            "- **Cash flow divergence:** Despite positive NOI, cash flow is negative due to $618K "
+            "in balance sheet changes (prepaid expenses, escrow) — this is an accounting timing "
+            "effect, not an operational loss.\n"
+            "- **Vacancy above benchmark:** At 9.2%, vacancy exceeds the 7% industry threshold; "
+            "the August spike suggests a lease renewal gap worth investigating.\n"
+            "- **Payroll outpacing revenue:** Payroll grew 18% while revenue grew 6% — "
+            "controllable expense discipline is slipping.\n\n"
+            f"Now write the same style summary for the property below. "
+            f"There are {len(high_anomalies)} high-severity anomalies — call out the most "
+            "important one if it adds insight beyond what the numbers already show.\n\n"
             f"{context}"
         )
 
@@ -51,7 +57,7 @@ Rules:
             {"role": "system", "content": self.SYSTEM_PROMPT},
             {"role": "user",   "content": user_prompt},
         ]
-        yield from self._stream(messages, temperature=0.4, max_tokens=500)
+        yield from self._stream(messages, temperature=0.3, max_tokens=450)
 
     def explain_anomaly(self, anomaly: Anomaly, stmt: FinancialStatement) -> str:
         """Return a plain-English explanation of a single anomaly."""

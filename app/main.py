@@ -310,7 +310,6 @@ st.markdown("""
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("Statement Utility")
-    st.caption("AI-powered financial statement analysis")
     st.divider()
 
     uploaded = st.file_uploader(
@@ -320,12 +319,10 @@ with st.sidebar:
              "Re-uploading the same file reuses cached results automatically.",
     )
 
-    if ai_ok:
-        st.success("AI assistant ready")
-    else:
+    if not ai_ok:
         st.warning(
-            f"AI is unavailable. Charts and ratios will still work.\n\n"
-            f"To enable AI insights, start Ollama and run:\n"
+            f"AI unavailable. Charts and ratios still work.\n\n"
+            f"Start Ollama and run:\n"
             f"`ollama pull {OLLAMA_MODEL}`"
         )
 
@@ -566,7 +563,8 @@ if st.session_state.ai_pending:
 # ── Tabs ───────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
     "Executive Summary",
-    "Income Statement",
+    "Revenue",
+    "Expenses",
     "Financial Ratios",
     "Trends",
     "Anomalies",
@@ -619,16 +617,17 @@ with tabs[0]:
 
 
 
-# ── Tab 2: Income Statement ────────────────────────────────────────────────────
+# ── Tab 2: Revenue ─────────────────────────────────────────────────────────────
 with tabs[1]:
-    st.header("Income Statement")
-
-    st.subheader("Revenue")
+    st.header("Revenue")
     st.plotly_chart(charts.revenue_vs_opex(stmt), use_container_width=True)
     st.plotly_chart(charts.vacancy_rate_bar(stmt), use_container_width=True)
     st.plotly_chart(charts.noi_margin_trend(stmt), use_container_width=True)
 
-    st.subheader("Expenses")
+
+# ── Tab 3: Expenses ────────────────────────────────────────────────────────────
+with tabs[2]:
+    st.header("Expenses")
     col_a, col_b = st.columns(2)
     with col_a:
         st.plotly_chart(charts.expense_breakdown_donut(stmt), use_container_width=True)
@@ -639,8 +638,8 @@ with tabs[1]:
     st.plotly_chart(charts.cashflow_vs_netincome(stmt), use_container_width=True)
 
 
-# ── Tab 3: Financial Ratios ────────────────────────────────────────────────────
-with tabs[2]:
+# ── Tab 4: Financial Ratios ────────────────────────────────────────────────────
+with tabs[3]:
     st.header("Financial Ratios")
 
     gauge_keys = ["oer", "noi_margin", "vacancy_rate", "dscr"]
@@ -688,8 +687,8 @@ with tabs[2]:
             )
 
 
-# ── Tab 4: Trends ─────────────────────────────────────────────────────────────
-with tabs[3]:
+# ── Tab 5: Trends ─────────────────────────────────────────────────────────────
+with tabs[4]:
     st.header("Trends")
 
     _avail_keys = list(trends.series.keys())
@@ -717,8 +716,8 @@ with tabs[3]:
     st.dataframe(pd.DataFrame(_trend_rows), use_container_width=True, hide_index=True)
 
 
-# ── Tab 5: Anomalies ──────────────────────────────────────────────────────────
-with tabs[4]:
+# ── Tab 6: Anomalies ──────────────────────────────────────────────────────────
+with tabs[5]:
     st.header("Anomalies & Issues")
 
     if not anomalies:
@@ -762,8 +761,8 @@ with tabs[4]:
                             st.info(explanation)
 
 
-# ── Tab 6: Chat ────────────────────────────────────────────────────────────────
-with tabs[5]:
+# ── Tab 7: Chat ────────────────────────────────────────────────────────────────
+with tabs[6]:
     st.header("Chat with your Report")
     st.caption("Ask any question about the financial data. The agent answers using real numbers from your statement.")
 
@@ -854,8 +853,8 @@ with tabs[5]:
                 st.rerun()  # refresh so suggestion buttons update to exclude the just-asked question
 
 
-# ── Tab 7: Custom Charts ───────────────────────────────────────────────────────
-with tabs[6]:
+# ── Tab 8: Custom Charts ───────────────────────────────────────────────────────
+with tabs[7]:
     st.header("Custom Charts")
     st.caption(
         "Describe any chart you want to see in plain English and the AI will generate it. "
