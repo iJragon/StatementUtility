@@ -304,6 +304,14 @@ for key, default in {
     "file_bytes": None,        # raw Excel bytes for session export
     "custom_charts": [],       # [{request, explanation, fig}] for Custom Charts tab
     "ai_pending": False,       # True while Phase 2 (AI) still needs to run
+    "deal_inputs": {           # Manual deal details (not in spreadsheet)
+        "purchase_price": 0.0,
+        "market_value":   0.0,
+        "units":          0,
+        "sqft":           0,
+        "loan_balance":   0.0,
+        "interest_rate":  0.0,
+    },
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -615,6 +623,7 @@ tabs = st.tabs([
     "Anomalies",
     "Chat",
     "Custom Charts",
+    "Deal Details",
 ])
 
 
@@ -970,6 +979,186 @@ with tabs[7]:
             if st.button("Clear all custom charts", key="clear_custom_charts"):
                 st.session_state.custom_charts = []
                 st.rerun()
+
+
+# ── Tab 9: Deal Details ────────────────────────────────────────────────────────
+with tabs[8]:
+    st.header("Deal Details")
+    st.caption(
+        "Enter acquisition and financing info to unlock investment-level metrics "
+        "that complement the operating data in your statement."
+    )
+
+    di = st.session_state.deal_inputs
+
+    # ── Inputs ─────────────────────────────────────────────────────────────────
+    col_prop, col_fin = st.columns(2, gap="large")
+
+    with col_prop:
+        st.subheader("Property")
+        purchase_price = st.number_input(
+            "Purchase Price ($)", min_value=0.0, step=10_000.0,
+            value=float(di["purchase_price"]), format="%.0f",
+        )
+        market_value = st.number_input(
+            "Current Market Value ($)", min_value=0.0, step=10_000.0,
+            value=float(di["market_value"]), format="%.0f",
+            help="Leave 0 to use purchase price",
+        )
+        units = st.number_input(
+            "Number of Units", min_value=0, step=1, value=int(di["units"]),
+        )
+        sqft = st.number_input(
+            "Total Square Footage", min_value=0, step=500, value=int(di["sqft"]),
+        )
+
+    with col_fin:
+        st.subheader("Financing")
+        loan_balance = st.number_input(
+            "Outstanding Loan Balance ($)", min_value=0.0, step=10_000.0,
+            value=float(di["loan_balance"]), format="%.0f",
+        )
+        interest_rate = st.number_input(
+            "Interest Rate (%)", min_value=0.0, max_value=30.0, step=0.125,
+            value=float(di["interest_rate"]), format="%.3f",
+        )
+
+    # Persist inputs across reruns
+    st.session_state.deal_inputs = {
+        "purchase_price": purchase_price,
+        "market_value":   market_value,
+        "units":          int(units),
+        "sqft":           int(sqft),
+        "loan_balance":   loan_balance,
+        "interest_rate":  interest_rate,
+    }
+
+    st.divider()
+
+    # ── Calculated metrics ─────────────────────────────────────────────────────
+    _pp   = purchase_price
+    _mv   = market_value if market_value > 0 else purchase_price
+    _u    = int(units)
+    _sf   = int(sqft)
+    _loan = loan_balance
+
+    _noi = stmt.annual("noi")
+    _rev = stmt.annual("total_revenue")
+    _cf  = stmt.annual("cash_flow")
+
+    _equity = (_mv - _loan) if _loan > 0 else None
+
+    def _pct(v):
+        return f"{v * 100:.2f}%" if v is not None else "N/A"
+
+    def _dollar(v):
+        return f"${v:,.0f}" if v is not None else "N/A"
+
+    def _mult(v):
+        return f"{v:.1f}x" if v is not None else "N/A"
+
+    def _status_badge(status):
+        _sc = {
+            "Good":    ("#2ECC71", "rgba(46,204,113,0.15)"),
+            "Watch":   ("#F39C12", "rgba(243,156,18,0.15)"),
+            "Concern": ("#E74C3C", "rgba(231,76,60,0.15)"),
+        }
+        c, bg = _sc.get(status, ("#888", "rgba(128,128,128,0.1)"))
+        return (
+            f'<span style="background:{bg};color:{c};padding:2px 8px;'
+            f'border-radius:6px;font-size:0.72rem;font-weight:600;">{status}</span>'
+        )
+
+    def _deal_kpi(col, label, value_str, bench=None, status=None, note=None):
+        badge = _status_badge(status) if status else ""
+        note_html  = f'<div style="font-size:0.76rem;opacity:0.45;margin-top:5px;">{note}</div>'  if note  else ""
+        bench_html = f'<div style="font-size:0.73rem;opacity:0.38;margin-top:4px;">{bench}</div>' if bench else ""
+        col.markdown(
+            f'<div class="kpi-card" style="min-height:110px;">'
+            f'<div class="kpi-label">{label}</div>'
+            f'<div class="kpi-value" style="font-size:1.3rem;">{value_str}</div>'
+            f'{note_html}{badge}{bench_html}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    if _pp <= 0:
+        st.info("Enter a purchase price above to calculate investment metrics.")
+    else:
+        # Compute metrics
+        cap_rate = (_noi / _pp)         if _noi is not None and _pp > 0       else None
+        coc      = (_cf  / _equity)     if _cf  is not None and _equity and _equity > 0 else None
+        grm      = (_pp  / _rev)        if _rev and _rev > 0                  else None
+        ppu      = (_pp  / _u)          if _u > 0                             else None
+        psf      = (_pp  / _sf)         if _sf > 0                            else None
+        noi_u    = (_noi / _u)          if _noi is not None and _u > 0        else None
+        dy       = (_noi / _loan)       if _noi is not None and _loan > 0     else None
+        ltv      = (_loan / _mv)        if _loan > 0 and _mv > 0             else None
+
+        def _cap_status(v):
+            if v is None: return None
+            return "Good" if v >= 0.06 else "Watch" if v >= 0.04 else "Concern"
+
+        def _coc_status(v):
+            if v is None: return None
+            return "Good" if v >= 0.08 else "Watch" if v >= 0.05 else "Concern"
+
+        def _ltv_status(v):
+            if v is None: return None
+            return "Good" if v <= 0.65 else "Watch" if v <= 0.75 else "Concern"
+
+        def _dy_status(v):
+            if v is None: return None
+            return "Good" if v >= 0.10 else "Watch" if v >= 0.08 else "Concern"
+
+        st.subheader("Investment Metrics")
+        r1 = st.columns(4)
+        r2 = st.columns(4)
+
+        _deal_kpi(r1[0], "Cap Rate",
+                  _pct(cap_rate),
+                  bench="Benchmark: 6%+",
+                  status=_cap_status(cap_rate))
+
+        _deal_kpi(r1[1], "Cash-on-Cash",
+                  _pct(coc) if _equity else "Enter loan balance",
+                  bench="Benchmark: 8%+" if _equity else None,
+                  status=_coc_status(coc))
+
+        _deal_kpi(r1[2], "Gross Rent Multiplier",
+                  _mult(grm),
+                  bench="Lower is better",
+                  note=f"${_pp:,.0f} / ${_rev:,.0f} revenue" if grm else None)
+
+        _deal_kpi(r1[3], "Equity",
+                  _dollar(_equity) if _equity else "Enter loan balance",
+                  bench=f"Market Value - Loan" if _equity else None)
+
+        _deal_kpi(r2[0], "Price / Unit",
+                  _dollar(ppu),
+                  note=f"{_u} units" if _u else None)
+
+        _deal_kpi(r2[1], "NOI / Unit",
+                  _dollar(noi_u) if noi_u else ("Enter units" if _u == 0 else "N/A"),
+                  note="Annual" if noi_u else None)
+
+        _deal_kpi(r2[2], "LTV",
+                  _pct(ltv) if ltv else "Enter loan balance",
+                  bench="Benchmark: <65%" if ltv else None,
+                  status=_ltv_status(ltv))
+
+        _deal_kpi(r2[3], "Debt Yield",
+                  _pct(dy) if dy else "Enter loan balance",
+                  bench="Benchmark: 10%+" if dy else None,
+                  status=_dy_status(dy))
+
+        if psf or interest_rate > 0:
+            parts = []
+            if psf:
+                parts.append(f"Price/sq ft: ${psf:,.0f}  ({_sf:,} sq ft)")
+            if interest_rate > 0:
+                parts.append(f"Interest rate: {interest_rate:.3f}%")
+            st.caption("  ·  ".join(parts))
 
 
 # ── Phase 2: AI generation (runs after tabs so all data tabs are visible first) ─
