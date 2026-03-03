@@ -517,29 +517,67 @@ trends    = st.session_state.trends
 
 if stmt is None:
     st.markdown("""
-    <div style="text-align:center; padding:60px 40px; max-width:600px; margin:60px auto 0;">
-        <div style="font-size:3.5rem; margin-bottom:16px;">📊</div>
-        <h2 style="font-weight:700; margin-bottom:12px;">Financial Statement Analysis</h2>
-        <p style="font-size:1rem; line-height:1.7; margin-bottom:32px; opacity:0.75;">
-            Upload an Excel profit and loss statement using the sidebar,
-            then click <strong>Analyze</strong> to generate charts,
-            financial ratios, anomaly detection, and AI-powered insights.
-        </p>
-        <div style="display:flex; flex-direction:column; gap:12px; text-align:left;
-                    border-radius:12px; padding:24px; border:1px solid rgba(128,128,128,0.2);">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="flex-shrink:0; width:1.5rem; text-align:center;">📤</span><span>Upload any .xlsx profit and loss statement</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="flex-shrink:0; width:1.5rem; text-align:center;">🔍</span><span>Auto-parsed regardless of format or layout</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="flex-shrink:0; width:1.5rem; text-align:center;">🤖</span><span>AI insights powered by a local Ollama model</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="flex-shrink:0; width:1.5rem; text-align:center;">💬</span><span>Chat with your financial data in plain language</span>
-            </div>
+    <div style="max-width:720px; margin:80px auto 0; padding:0 24px; text-align:center;">
+
+      <div style="margin-bottom:40px;">
+        <div style="font-size:0.75rem; font-weight:700; letter-spacing:0.14em;
+                    text-transform:uppercase; opacity:0.35; margin-bottom:14px;">
+          Statement Utility
         </div>
+        <h1 style="font-size:2.1rem; font-weight:700; letter-spacing:-0.02em; margin:0 0 16px;">
+          Financial Statement Analysis
+        </h1>
+        <div style="width:36px; height:3px; background:#2ECC71; border-radius:2px; margin:0 auto 20px;"></div>
+        <p style="font-size:1rem; opacity:0.55; margin:0; line-height:1.65; max-width:480px; margin:0 auto;">
+          Upload a P&amp;L statement to instantly generate charts, ratios,
+          anomaly detection, and AI-powered insights.
+        </p>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;
+                  text-align:left; margin-bottom:48px;">
+        <div style="padding:22px; border-radius:12px;
+                    border:1px solid rgba(128,128,128,0.15);
+                    background:rgba(128,128,128,0.04);">
+          <div style="font-size:1.3rem; margin-bottom:10px;">📈</div>
+          <div style="font-weight:600; font-size:0.92rem; margin-bottom:5px;">Charts &amp; Ratios</div>
+          <div style="font-size:0.8rem; opacity:0.5; line-height:1.55;">
+            Revenue trends, expense breakdowns, NOI margin, DSCR, and key financial ratios with benchmarks.
+          </div>
+        </div>
+        <div style="padding:22px; border-radius:12px;
+                    border:1px solid rgba(128,128,128,0.15);
+                    background:rgba(128,128,128,0.04);">
+          <div style="font-size:1.3rem; margin-bottom:10px;">🔍</div>
+          <div style="font-weight:600; font-size:0.92rem; margin-bottom:5px;">Anomaly Detection</div>
+          <div style="font-size:0.8rem; opacity:0.5; line-height:1.55;">
+            Flags spikes, sign changes, and outliers with exact cell references from your spreadsheet.
+          </div>
+        </div>
+        <div style="padding:22px; border-radius:12px;
+                    border:1px solid rgba(128,128,128,0.15);
+                    background:rgba(128,128,128,0.04);">
+          <div style="font-size:1.3rem; margin-bottom:10px;">🤖</div>
+          <div style="font-weight:600; font-size:0.92rem; margin-bottom:5px;">AI Executive Summary</div>
+          <div style="font-size:0.8rem; opacity:0.5; line-height:1.55;">
+            Interpretive bullet-point insights from a local LLM — explains the why, not just the what.
+          </div>
+        </div>
+        <div style="padding:22px; border-radius:12px;
+                    border:1px solid rgba(128,128,128,0.15);
+                    background:rgba(128,128,128,0.04);">
+          <div style="font-size:1.3rem; margin-bottom:10px;">💬</div>
+          <div style="font-weight:600; font-size:0.92rem; margin-bottom:5px;">Chat with Your Data</div>
+          <div style="font-size:0.8rem; opacity:0.5; line-height:1.55;">
+            Ask questions in plain language. Answers are grounded in real numbers from your statement.
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:0.78rem; opacity:0.28; margin:0;">
+        ← Upload a statement in the sidebar to get started
+      </p>
+
     </div>
     """, unsafe_allow_html=True)
     st.stop()
