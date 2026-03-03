@@ -32,6 +32,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 
 from app.parser.excel_parser import parse_excel
@@ -128,33 +129,10 @@ header {
     overflow: visible !important;
 }
 
-/* ── Sidebar toggle: centered, modernized ── */
+/* ── Sidebar toggle: native hidden, custom JS button takes over ── */
 [data-testid="stSidebarCollapsedControl"] {
-    position: fixed !important;
-    top: 50% !important;
-    left: 0 !important;
-    transform: translateY(-50%) !important;
-    z-index: 999 !important;
-    width: 28px !important;
-    height: 88px !important;
-    background: rgba(46,204,113,0.13) !important;
-    border-radius: 0 12px 12px 0 !important;
-    border: 1px solid rgba(46,204,113,0.3) !important;
-    border-left: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: background 0.2s ease, width 0.2s ease !important;
-}
-[data-testid="stSidebarCollapsedControl"]:hover {
-    background: rgba(46,204,113,0.26) !important;
-    width: 34px !important;
-}
-[data-testid="stSidebarCollapsedControl"] svg {
-    fill: #2ECC71 !important;
-    width: 16px !important;
-    height: 16px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 /* ── Main container ── */
@@ -343,6 +321,91 @@ st.markdown("""
 .kpi-label { color: rgba(255,255,255,0.6); }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Custom sidebar toggle (JS) ──────────────────────────────────────────────
+# CSS position:fixed fails when Streamlit parent has a CSS transform applied.
+# Instead we append a real <button> directly to window.parent.document.body
+# from inside a zero-height iframe, so fixed positioning is always viewport-relative.
+components.html("""
+<script>
+(function() {
+  var p = window.parent;
+  if (!p || p.__suToggleInit) return;
+  p.__suToggleInit = true;
+
+  var doc   = p.document;
+  var BID   = "__su-sidebar-toggle";
+  var CHEVRON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 14" '
+              + 'style="width:12px;height:12px;" fill="none">'
+              + '<path d="M7 1L1 7L7 13" stroke="#2ECC71" stroke-width="1.5" '
+              + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function ensureBtn() {
+    var existing = doc.getElementById(BID);
+    if (existing) return existing;
+
+    var btn = doc.createElement("button");
+    btn.id  = BID;
+    btn.innerHTML = CHEVRON;
+    var s = btn.style;
+    s.position     = "fixed";
+    s.left         = "0";
+    s.top          = "50%";
+    s.transform    = "translateY(-50%)";
+    s.zIndex       = "99999";
+    s.width        = "28px";
+    s.height       = "88px";
+    s.background   = "rgba(46,204,113,0.13)";
+    s.border       = "1px solid rgba(46,204,113,0.3)";
+    s.borderLeft   = "none";
+    s.borderRadius = "0 12px 12px 0";
+    s.cursor       = "pointer";
+    s.display      = "none";
+    s.alignItems   = "center";
+    s.justifyContent = "center";
+    s.padding      = "0";
+    s.outline      = "none";
+    s.transition   = "background 0.2s ease, width 0.2s ease";
+
+    btn.addEventListener("mouseenter", function() {
+      btn.style.background = "rgba(46,204,113,0.26)";
+      btn.style.width      = "34px";
+    });
+    btn.addEventListener("mouseleave", function() {
+      btn.style.background = "rgba(46,204,113,0.13)";
+      btn.style.width      = "28px";
+    });
+    btn.addEventListener("click", function() {
+      var native = doc.querySelector("[data-testid='stSidebarCollapsedControl'] button")
+                || doc.querySelector("[data-testid='stSidebarCollapsedControl']");
+      if (native) native.click();
+    });
+
+    doc.body.appendChild(btn);
+    return btn;
+  }
+
+  function refresh() {
+    var native = doc.querySelector("[data-testid='stSidebarCollapsedControl']");
+    var btn    = ensureBtn();
+    btn.style.display = native ? "flex" : "none";
+  }
+
+  var observer = new p.MutationObserver(refresh);
+
+  function start() {
+    observer.observe(doc.body, { childList: true, subtree: true });
+    refresh();
+  }
+
+  if (doc.readyState === "loading") {
+    doc.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+</script>
+""", height=0)
 
 
 # ── Sidebar — controls ─────────────────────────────────────────────────────────
