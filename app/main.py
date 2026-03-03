@@ -120,19 +120,29 @@ header {visibility: hidden;}
 [data-testid="stToolbarActions"] {display: none;}
 
 /* ── Sidebar toggle: restore visibility and modernize ── */
-[data-testid="stSidebarCollapsedControl"] {
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stSidebarCollapsedControl"] button {
     visibility: visible !important;
-    background: rgba(46,204,113,0.1) !important;
-    border-radius: 0 8px 8px 0 !important;
-    border: 1px solid rgba(46,204,113,0.2) !important;
+    display: flex !important;
+    opacity: 1 !important;
+}
+[data-testid="stSidebarCollapsedControl"] {
+    background: rgba(46,204,113,0.12) !important;
+    border-radius: 0 10px 10px 0 !important;
+    border: 1px solid rgba(46,204,113,0.25) !important;
     border-left: none !important;
+    min-height: 72px !important;
+    align-items: center !important;
+    justify-content: center !important;
     transition: background 0.2s ease !important;
 }
 [data-testid="stSidebarCollapsedControl"]:hover {
-    background: rgba(46,204,113,0.22) !important;
+    background: rgba(46,204,113,0.24) !important;
 }
 [data-testid="stSidebarCollapsedControl"] svg {
     fill: #2ECC71 !important;
+    width: 18px !important;
+    height: 18px !important;
 }
 
 /* ── Main container ── */
@@ -540,9 +550,9 @@ if stmt is None:
                     text-transform:uppercase; opacity:0.35; margin-bottom:14px;">
           Statement Utility
         </div>
-        <h1 style="font-size:2.1rem; font-weight:700; letter-spacing:-0.02em; margin:0 0 16px;">
+        <div style="font-size:2.1rem; font-weight:700; letter-spacing:-0.02em; margin:0 0 16px;">
           Financial Statement Analysis
-        </h1>
+        </div>
         <div style="width:36px; height:3px; background:#2ECC71; border-radius:2px; margin:0 auto 20px;"></div>
         <p style="font-size:1rem; opacity:0.55; margin:0; line-height:1.65; max-width:480px; margin:0 auto;">
           Upload a P&amp;L statement to instantly generate charts, ratios,
