@@ -1022,7 +1022,8 @@ with tabs[8]:
     _rev = stmt.annual("total_revenue")
     _cf  = stmt.annual("cash_flow")
 
-    _equity = (_mv - _loan) if _loan > 0 else None
+    _equity_val    = _mv - _loan              # current equity (always valid; = _mv if no loan)
+    _cash_invested = (_pp - _loan) if _loan > 0 else _pp  # actual down payment / cash at closing
 
     def _pct(v):
         return f"{v * 100:.2f}%" if v is not None else "N/A"
@@ -1062,8 +1063,8 @@ with tabs[8]:
         st.info("Enter a purchase price above to calculate investment metrics.")
     else:
         # Compute metrics
-        cap_rate = (_noi / _pp)         if _noi is not None and _pp > 0       else None
-        coc      = (_cf  / _equity)     if _cf  is not None and _equity and _equity > 0 else None
+        cap_rate = (_noi / _pp)              if _noi is not None and _pp > 0            else None
+        coc      = (_cf  / _cash_invested)  if _cf  is not None and _cash_invested > 0  else None
         grm      = (_pp  / _rev)        if _rev and _rev > 0                  else None
         ppu      = (_pp  / _u)          if _u > 0                             else None
         psf      = (_pp  / _sf)         if _sf > 0                            else None
@@ -1097,9 +1098,10 @@ with tabs[8]:
                   status=_cap_status(cap_rate))
 
         _deal_kpi(r1[1], "Cash-on-Cash",
-                  _pct(coc) if _equity else "Enter loan balance",
-                  bench="Benchmark: 8%+" if _equity else None,
-                  status=_coc_status(coc))
+                  _pct(coc),
+                  bench="Benchmark: 8%+",
+                  status=_coc_status(coc),
+                  note=f"${_cf:,.0f} CF / ${_cash_invested:,.0f} invested" if coc else None)
 
         _deal_kpi(r1[2], "Gross Rent Multiplier",
                   _mult(grm),
@@ -1107,8 +1109,8 @@ with tabs[8]:
                   note=f"${_pp:,.0f} / ${_rev:,.0f} revenue" if grm else None)
 
         _deal_kpi(r1[3], "Equity",
-                  _dollar(_equity) if _equity else "Enter loan balance",
-                  bench=f"Market Value - Loan" if _equity else None)
+                  _dollar(_equity_val),
+                  bench=f"${_mv:,.0f} - ${_loan:,.0f}" if _loan > 0 else "All-cash (no loan)")
 
         _deal_kpi(r2[0], "Price / Unit",
                   _dollar(ppu),
