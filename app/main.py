@@ -1016,6 +1016,7 @@ with tabs[8]:
     _u    = int(st.session_state.deal_units)
     _sf   = int(st.session_state.deal_sqft)
     _loan = st.session_state.deal_loan_balance
+    _rate = st.session_state.deal_interest_rate
 
     _noi = stmt.annual("noi")
     _rev = stmt.annual("total_revenue")
@@ -1127,12 +1128,12 @@ with tabs[8]:
                   bench="Benchmark: 10%+" if dy else None,
                   status=_dy_status(dy))
 
-        if psf or interest_rate > 0:
+        if psf or _rate > 0:
             parts = []
             if psf:
                 parts.append(f"Price/sq ft: ${psf:,.0f}  ({_sf:,} sq ft)")
-            if interest_rate > 0:
-                parts.append(f"Interest rate: {interest_rate:.3f}%")
+            if _rate > 0:
+                parts.append(f"Interest rate: {_rate:.3f}%")
             st.caption("  ·  ".join(parts))
 
 
