@@ -326,18 +326,20 @@ with st.sidebar:
             f"`ollama pull {OLLAMA_MODEL}`"
         )
 
-    force_reanalyze = st.checkbox(
-        "Force reanalyze",
-        value=False,
-        help="Re-run all analysis even if this file was already analyzed this session.",
-    )
-
     analyze_btn = st.button(
         "Analyze",
         type="primary",
         disabled=uploaded is None,
         use_container_width=True,
     )
+
+    reanalyze_btn = False
+    if st.session_state.stmt is not None:
+        reanalyze_btn = st.button(
+            "Reanalyze",
+            use_container_width=True,
+            help="Re-run all analysis on the currently loaded statement.",
+        )
     st.divider()
 
     # ── Session export ─────────────────────────────────────────────────────
@@ -386,84 +388,78 @@ with st.sidebar:
 
 
 # ── Phase 1: fast analysis (parse + ratios + anomalies + trends) ───────────────
-if analyze_btn and uploaded:
-    file_data = uploaded.read()
+if (analyze_btn and uploaded) or reanalyze_btn:
+    file_data = st.session_state.file_bytes if reanalyze_btn else uploaded.read()
     file_hash = hashlib.md5(file_data).hexdigest()
 
-    if file_hash == st.session_state.file_hash and not force_reanalyze:
-        st.sidebar.success("Cached results loaded. Check **Force reanalyze** to recompute.")
-    else:
-        st.session_state.file_bytes = file_data
-        with st.status("Reading your statement…", expanded=True) as phase1_status:
-            st.write("Parsing spreadsheet…")
+    st.session_state.file_bytes = file_data
+    with st.status("Reading your statement…", expanded=True) as phase1_status:
+        st.write("Parsing spreadsheet…")
+        try:
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                tmp.write(file_data)
+                tmp_path = tmp.name
+            stmt = parse_excel(tmp_path)
+            os.unlink(tmp_path)
+            st.session_state.stmt = stmt
+        except Exception as e:
+            st.error(f"Failed to parse spreadsheet: {e}")
+            st.stop()
+
+        # LLM fallback: identify any key figures the heuristic missed
+        if ai_ok:
             try:
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
-                    tmp.write(file_data)
-                    tmp_path = tmp.name
-                stmt = parse_excel(tmp_path)
-                os.unlink(tmp_path)
-                st.session_state.stmt = stmt
-            except Exception as e:
-                st.error(f"Failed to parse spreadsheet: {e}")
-                st.stop()
+                from app.agents.parser_agent import LabelMapperAgent
+                from app.parser.excel_parser import KEY_FIGURE_PATTERNS, enrich_key_figures
+                missing = [k for k in KEY_FIGURE_PATTERNS if k not in stmt.key_figures]
+                if missing:
+                    st.write(f"AI resolving {len(missing)} non-standard label(s)...")
+                    mapper = LabelMapperAgent()
+                    label_map = mapper.map_labels(
+                        [row.label for row in stmt.all_rows if not row.is_header],
+                        missing,
+                    )
+                    if label_map:
+                        enrich_key_figures(stmt, label_map)
+            except Exception:
+                pass  # fallback failure is non-fatal; heuristic results stand
 
-            # LLM fallback: identify any key figures the heuristic missed
-            # Runs outside the parse try/except so import errors here don't
-            # mask a genuine parse failure.
-            if ai_ok:
-                try:
-                    from app.agents.parser_agent import LabelMapperAgent
-                    from app.parser.excel_parser import KEY_FIGURE_PATTERNS, enrich_key_figures
-                    missing = [k for k in KEY_FIGURE_PATTERNS if k not in stmt.key_figures]
-                    if missing:
-                        st.write(f"AI resolving {len(missing)} non-standard label(s)...")
-                        mapper = LabelMapperAgent()
-                        label_map = mapper.map_labels(
-                            [row.label for row in stmt.all_rows if not row.is_header],
-                            missing,
-                        )
-                        if label_map:
-                            enrich_key_figures(stmt, label_map)
-                except Exception:
-                    pass  # fallback failure is non-fatal; heuristic results stand
+        st.write("Calculating financial ratios…")
+        st.session_state.ratios = calculate_ratios(stmt)
 
-            st.write("Calculating financial ratios…")
-            st.session_state.ratios = calculate_ratios(stmt)
+        st.write("Detecting anomalies…")
+        st.session_state.anomalies = detect_anomalies(stmt)
 
-            st.write("Detecting anomalies…")
-            st.session_state.anomalies = detect_anomalies(stmt)
+        st.write("Analyzing trends…")
+        st.session_state.trends = analyze_trends(stmt)
 
-            st.write("Analyzing trends…")
-            st.session_state.trends = analyze_trends(stmt)
-
-            st.write("Wiring up chat agent…")
-            chat_agent = ChatAgent()
-            if ai_ok:
-                chat_agent.set_context(
-                    stmt,
-                    st.session_state.ratios,
-                    st.session_state.anomalies,
-                    st.session_state.trends,
-                )
-            st.session_state.chat_agent = chat_agent
-            st.session_state.file_hash  = file_hash
-
-            phase1_status.update(
-                label="Data ready! AI insights generating next…" if ai_ok else "Analysis complete!",
-                state="complete",
-                expanded=False,
+        st.write("Wiring up chat agent…")
+        chat_agent = ChatAgent()
+        if ai_ok:
+            chat_agent.set_context(
+                stmt,
+                st.session_state.ratios,
+                st.session_state.anomalies,
+                st.session_state.trends,
             )
+        st.session_state.chat_agent = chat_agent
+        st.session_state.file_hash  = file_hash
 
-        # New file or forced reanalysis — always clear AI content and chat.
-        st.session_state.summary_text         = ""
-        st.session_state.ratio_commentary     = ""
-        st.session_state.anomaly_explanations = {}
-        st.session_state.chat_history         = []
-        st.session_state.file_hash            = file_hash
-        st.session_state.ai_pending           = ai_ok
+        phase1_status.update(
+            label="Data ready! AI insights generating next…" if ai_ok else "Analysis complete!",
+            state="complete",
+            expanded=False,
+        )
 
-        st.rerun()   # rerun so tabs populate immediately before Phase 2 starts
+    st.session_state.summary_text         = ""
+    st.session_state.ratio_commentary     = ""
+    st.session_state.anomaly_explanations = {}
+    st.session_state.chat_history         = []
+    st.session_state.file_hash            = file_hash
+    st.session_state.ai_pending           = ai_ok
+
+    st.rerun()   # rerun so tabs populate immediately before Phase 2 starts
 
 
 
@@ -651,40 +647,45 @@ with tabs[3]:
 
     st.divider()
 
-    ratio_rows = []
+    def _fmt_bench(val, unit):
+        if val is None:
+            return "—"
+        return f"{val*100:.0f}%" if unit == "%" else f"{val:.2f}x"
+
+    _STATUS_BADGE = {
+        "Good":    '<span style="background:rgba(46,204,113,0.18);color:#2ECC71;padding:2px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;">Good</span>',
+        "Watch":   '<span style="background:rgba(243,156,18,0.18);color:#F39C12;padding:2px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;">Watch</span>',
+        "Concern": '<span style="background:rgba(231,76,60,0.18);color:#E74C3C;padding:2px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;">Concern</span>',
+    }
+
+    _th = "padding:10px 14px;font-weight:600;opacity:0.7;text-align:left;border-bottom:2px solid rgba(128,128,128,0.2);"
+    _td = "padding:9px 14px;border-bottom:1px solid rgba(128,128,128,0.1);vertical-align:middle;"
+    _rows_html = ""
     for r in ratios.ratios.values():
-        lo = f"{r.benchmark_low*100:.0f}%"  if (r.benchmark_low  is not None and r.unit == "%") else (str(r.benchmark_low)  if r.benchmark_low  else "N/A")
-        hi = f"{r.benchmark_high*100:.0f}%" if (r.benchmark_high is not None and r.unit == "%") else (str(r.benchmark_high) if r.benchmark_high else "N/A")
-        ratio_rows.append({
-            "Metric":          r.label,
-            "Value":           r.pct_display(),
-            "Benchmark Low":   lo,
-            "Benchmark High":  hi,
-            "Status": {"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, "-"),
-        })
-    df_ratios = pd.DataFrame(ratio_rows)
-
-    def _color_status(val):
-        return {
-            "Good":    "background-color: #d4edda; color: #155724;",
-            "Watch":   "background-color: #fff3cd; color: #856404;",
-            "Concern": "background-color: #f8d7da; color: #721c24;",
-        }.get(val, "")
-
-    st.dataframe(
-        df_ratios.style.map(_color_status, subset=["Status"]),
-        use_container_width=True, hide_index=True,
+        lo = _fmt_bench(r.benchmark_low, r.unit)
+        hi = _fmt_bench(r.benchmark_high, r.unit)
+        bench = f"{lo}–{hi}" if lo != "—" or hi != "—" else "—"
+        badge = _STATUS_BADGE.get({"good": "Good", "warning": "Watch", "bad": "Concern"}.get(r.status, ""), "")
+        _rows_html += (
+            f"<tr>"
+            f"<td style='{_td}'>{tt(r.label, key=r.name)}</td>"
+            f"<td style='{_td}'>{r.pct_display()}</td>"
+            f"<td style='{_td};opacity:0.7;'>{bench}</td>"
+            f"<td style='{_td}'>{badge}</td>"
+            f"</tr>"
+        )
+    st.markdown(
+        f"<table style='width:100%;border-collapse:collapse;font-size:0.9rem;'>"
+        f"<thead><tr>"
+        f"<th style='{_th}'>Metric</th>"
+        f"<th style='{_th}'>Value</th>"
+        f"<th style='{_th}'>Benchmark</th>"
+        f"<th style='{_th}'>Status</th>"
+        f"</tr></thead>"
+        f"<tbody>{_rows_html}</tbody>"
+        f"</table>",
+        unsafe_allow_html=True,
     )
-
-    with st.expander("Ratio Definitions", expanded=False):
-        for _r in ratios.ratios.values():
-            _bench_lo = f"{_r.benchmark_low*100:.0f}%" if (_r.benchmark_low is not None and _r.unit == "%") else (f"{_r.benchmark_low:.2f}x" if _r.benchmark_low else "—")
-            _bench_hi = f"{_r.benchmark_high*100:.0f}%" if (_r.benchmark_high is not None and _r.unit == "%") else (f"{_r.benchmark_high:.2f}x" if _r.benchmark_high else "—")
-            st.markdown(
-                f"{tt(_r.label, key=_r.name)} &nbsp; `{_r.pct_display()}` &nbsp; "
-                f"<span style='font-size:0.8rem; opacity:0.65;'>Benchmark: {_bench_lo}–{_bench_hi}</span>",
-                unsafe_allow_html=True,
-            )
 
 
 # ── Tab 5: Trends ─────────────────────────────────────────────────────────────
