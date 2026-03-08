@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && node -e \"\nconst XLSX = require\\('xlsx'\\);\nconst wb = XLSX.readFile\\('Data/12_Month_Statement_secesml_accrual-2.xlsx'\\);\nconst ws = wb.Sheets['Report1'];\nconst data = XLSX.utils.sheet_to_json\\(ws, {header: 1, defval: null}\\);\ndata.slice\\(20\\).forEach\\(function\\(row, i\\) {\n  var nonNull = row.filter\\(function\\(x\\) { return x !== null; }\\);\n  if \\(nonNull.length > 0\\) console.log\\('Row', i+21, ':', JSON.stringify\\(row.slice\\(0,3\\)\\)\\);\n}\\);\n\" 2>&1)",
+      "Bash(cd:*)",
+      "Bash(echo NO_PYTHON:*)",
+      "Bash(winget:*)",
+      "Bash(ollama:*)",
+      "Bash(python3.12 --version 2>&1 || py -3.12 --version 2>&1)",
+      "Bash(\"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\":*)",
+      "Bash(tail:*)",
+      "Bash(\"/c/Program Files/Ollama/ollama.exe\":*)",
+      "Bash(\"/c/Users/jgonn/AppData/Local/Programs/Ollama/ollama.exe\":*)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && \"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom app.parser.excel_parser import parse_excel\nfrom app.analysis.ratio_calculator import calculate_ratios\nfrom app.analysis.anomaly_detector import detect_anomalies\nfrom app.analysis.trend_analyzer import analyze_trends\n\nstmt = parse_excel\\('Data/12_Month_Statement_secesml_accrual-2.xlsx'\\)\nprint\\('Property:', stmt.property_name\\)\n\nprint\\('\\\\nKEY FIGURES \\(annual totals\\):'\\)\nlabels = {\n    'gross_potential_rent': 'GPR', 'total_revenue': 'Total Revenue',\n    'total_operating_expenses': 'Total OpEx', 'noi': 'NOI',\n    'vacancy_loss': 'Vacancy Loss', 'net_income': 'Net Income', 'cash_flow': 'Cash Flow',\n}\nfor k, lbl in labels.items\\(\\):\n    item = stmt.get_figure\\(k\\)\n    if item:\n        print\\(f'  {lbl}: {item.annual_total:,.2f} \\(row {item.row_number}\\)'\\)\n    else:\n        print\\(f'  {lbl}: NOT FOUND'\\)\n\nprint\\('\\\\nRATIOS:'\\)\nratios = calculate_ratios\\(stmt\\)\nfor name, r in ratios.ratios.items\\(\\):\n    print\\(f'  {r.label}: {r.pct_display\\(\\)} [{r.status}]'\\)\n\nanomalies = detect_anomalies\\(stmt\\)\nprint\\(f'\\\\nAnomalies: {len\\(anomalies\\)}'\\)\nfor a in anomalies:\n    print\\(f'  [{a.severity}] {a.line_item_label} \\({a.cell_ref}\\): {a.description[:80]}'\\)\n\" 2>&1)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && \"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\" -c \"\nfrom app.parser.excel_parser import parse_excel\nfrom app.analysis.ratio_calculator import calculate_ratios\nfrom app.analysis.anomaly_detector import detect_anomalies\n\nstmt = parse_excel\\('Data/12_Month_Statement_secesml_accrual-2.xlsx'\\)\nratios = calculate_ratios\\(stmt\\)\nanomalies = detect_anomalies\\(stmt\\)\nprint\\(f'Total anomalies: {len\\(anomalies\\)}'\\)\nby_sev = {}\nfor a in anomalies:\n    by_sev.setdefault\\(a.severity, []\\).append\\(a\\)\nfor sev in ['high','medium','low']:\n    items = by_sev.get\\(sev, []\\)\n    print\\(f'\\\\n  [{sev.upper\\(\\)}] {len\\(items\\)} issues:'\\)\n    for a in items:\n        print\\(f'    {a.line_item_label} \\({a.cell_ref}\\): {a.description[:75]}'\\)\n\" 2>&1)",
+      "Bash(head:*)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && \"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\" test_e2e.py 2>&1)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && \"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\" test_ai.py 2>&1)",
+      "Bash(\"/c/Users/jgonn/AppData/Local/Programs/Ollama/ollama.exe\" pull:*)",
+      "Bash(\"/c/Users/jgonn/AppData/Local/Programs/Ollama/ollama.exe\" list:*)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && \"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/python.exe\" -X utf8 test_ai.py 2>&1)",
+      "Bash(git:*)",
+      "Bash(cd /c/Users/jgonn/Documents/Github/StatementUtility && gh auth status 2>&1)",
+      "Bash(tasklist:*)",
+      "Bash(\"/c/Users/jgonn/AppData/Local/Programs/Python/Python312/Scripts/streamlit.exe\" run:*)",
+      "Bash(netstat:*)",
+      "Bash(python:*)",
+      "WebFetch(domain:discuss.streamlit.io)"
+    ]
+  }
+}
