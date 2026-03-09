@@ -13,6 +13,18 @@ interface ExpensesTabProps {
   analysis: AnalysisResult;
 }
 
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <div className="card">
+      <div className="mb-1">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{title}</h3>
+        {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function ExpensesTab({ analysis }: ExpensesTabProps) {
   const { statement } = analysis;
 
@@ -22,21 +34,29 @@ export default function ExpensesTab({ analysis }: ExpensesTabProps) {
   const chart4 = cashflowVsNetIncome(statement);
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="card">
-          <PlotlyChart data={chart1.data} layout={chart1.layout} style={{ height: 300 }} />
-        </div>
-        <div className="card">
-          <PlotlyChart data={chart2.data} layout={chart2.layout} style={{ height: 300 }} />
-        </div>
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <ChartCard title="Annual Expense Breakdown" subtitle="Distribution of operating costs by category">
+          <PlotlyChart data={chart1.data} layout={{ ...chart1.layout, title: undefined }} style={{ height: 310 }} />
+        </ChartCard>
+        <ChartCard title="Controllable vs Non-Controllable" subtitle="Monthly split between manageable and fixed costs">
+          <PlotlyChart data={chart2.data} layout={{ ...chart2.layout, title: undefined }} style={{ height: 310 }} />
+        </ChartCard>
       </div>
-      <div className="card">
-        <PlotlyChart data={chart3.data} layout={chart3.layout} style={{ height: 360 }} />
-      </div>
-      <div className="card">
-        <PlotlyChart data={chart4.data} layout={chart4.layout} style={{ height: 280 }} />
-      </div>
+
+      {chart3.data.length > 0 && (
+        <ChartCard title="Expense Heatmap" subtitle="Heat intensity shows relative expense levels across months">
+          <PlotlyChart
+            data={chart3.data}
+            layout={{ ...chart3.layout, title: undefined }}
+            style={{ height: (chart3.layout as { height?: number }).height ?? 340 }}
+          />
+        </ChartCard>
+      )}
+
+      <ChartCard title="Cash Flow vs Net Income" subtitle="Monthly comparison — divergence indicates balance sheet movements">
+        <PlotlyChart data={chart4.data} layout={{ ...chart4.layout, title: undefined }} style={{ height: 300 }} />
+      </ChartCard>
     </div>
   );
 }
