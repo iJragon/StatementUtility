@@ -355,7 +355,7 @@ export function kpiGauge(label: string, value: number | null, lo: number, hi: nu
 }
 
 // 8. Expense heatmap — organized by named categories using AI-extracted key figures
-export function expenseHeatmap(statement: FinancialStatement, isDark = true) {
+export function expenseHeatmap(statement: FinancialStatement) {
   const months = statement.months;
 
   const EXPENSE_KEYS: { key: string; label: string }[] = [
@@ -412,11 +412,11 @@ export function expenseHeatmap(statement: FinancialStatement, isDark = true) {
       z,
       customdata,
       colorscale: [
-        [0,    isDark ? '#6ee7a0' : '#15803d'],  // below avg: muted green (dark) / deep green (light)
-        [0.35, isDark ? '#bbf7d0' : '#86efac'],  // slightly below avg
-        [0.5,  isDark ? '#1e293b' : '#f8fafc'],  // average: blends into background
-        [0.65, isDark ? '#fecaca' : '#fca5a5'],  // slightly above avg
-        [1,    isDark ? '#fca5a5' : '#b91c1c'],  // above avg: muted red (dark) / deep red (light)
+        [0,    '#16a34a'],  // strong green — well below average
+        [0.35, '#4ade80'],  // light green — slightly below average
+        [0.5,  '#94a3b8'],  // slate gray — on average (neutral, visible on both themes)
+        [0.65, '#f87171'],  // light red — slightly above average
+        [1,    '#dc2626'],  // strong red — well above average
       ],
       zmin: 0,
       zmax: 1,
