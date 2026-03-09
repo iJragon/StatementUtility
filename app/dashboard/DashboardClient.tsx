@@ -183,9 +183,67 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
     setShowForceConfirm(true);
   }
 
-  function confirmForceAnalyze() {
+  async function confirmForceAnalyze() {
     setShowForceConfirm(false);
-    runAnalyze(true);
+
+    // If a file is selected, use the normal upload-and-analyze flow
+    if (selectedFileRef.current) {
+      runAnalyze(true);
+      return;
+    }
+
+    // No file selected — reprocess from stored data (history load case)
+    if (!analysis) return;
+    setIsAnalyzing(true);
+    setAnalyzeError('');
+    setDuplicateNotice('');
+    setSummaryText('');
+    setAnomalyExplanations({});
+    setResolvedAnomalies(new Set());
+
+    try {
+      const res = await fetch('/api/analyze/reprocess', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileHash: analysis.fileHash }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Reprocess failed' }));
+        throw new Error(err.error || 'Reprocess failed');
+      }
+
+      const result: AnalysisResult = await res.json();
+      setAnalysis(result);
+      setActiveTab('summary');
+
+      // Update history entry timestamp
+      setHistory(prev => prev.map(h =>
+        h.id === result.fileHash ? { ...h, analyzedAt: result.analyzedAt } : h,
+      ));
+
+      // Stream fresh summary and persist it
+      setSummaryStreaming(true);
+      const context = buildFinancialContext(result.statement, result.ratios, result.anomalies, result.trends);
+      let summaryAcc = '';
+      try {
+        await streamText('/api/summary', { context }, chunk => {
+          summaryAcc += chunk;
+          setSummaryText(summaryAcc);
+        });
+        fetch('/api/analyze', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileHash: result.fileHash, summaryText: summaryAcc }),
+        }).catch(console.error);
+      } finally {
+        setSummaryStreaming(false);
+      }
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : 'Reprocess failed');
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   async function handleHistoryDelete(id: string) {
@@ -323,6 +381,7 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
       <Sidebar
         userEmail={userEmail}
         history={history}
+        hasAnalysis={analysis !== null}
         onFileSelect={handleFileSelect}
         onAnalyze={handleAnalyze}
         onForceAnalyze={handleForceAnalyze}

@@ -6,6 +6,7 @@ import type { HistoryEntry } from '@/app/dashboard/page';
 interface SidebarProps {
   userEmail: string;
   history: HistoryEntry[];
+  hasAnalysis: boolean;
   onFileSelect: (file: File) => void;
   onAnalyze: () => void;
   onForceAnalyze: () => void;
@@ -27,6 +28,7 @@ function formatDate(iso: string): string {
 export default function Sidebar({
   userEmail,
   history,
+  hasAnalysis,
   onFileSelect,
   onAnalyze,
   onForceAnalyze,
@@ -119,8 +121,8 @@ export default function Sidebar({
           {isAnalyzing ? 'Analyzing...' : 'Analyze'}
         </button>
 
-        {/* Force re-analyze — bypasses cache, re-runs full AI extraction */}
-        {selectedFileName && !isAnalyzing && (
+        {/* Force re-analyze — available when a file is selected or an analysis is loaded */}
+        {(selectedFileName || hasAnalysis) && !isAnalyzing && (
           <button
             onClick={onForceAnalyze}
             className="w-full mt-1.5 text-xs py-1.5 px-3 rounded-md border transition-colors hover:opacity-80 flex items-center justify-center gap-1.5"
