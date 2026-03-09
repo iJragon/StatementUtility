@@ -125,24 +125,12 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
       setActiveTab('summary');
 
       if (result.fromCache && !force) {
-        // Duplicate file: load stored state, skip streaming
+        // Duplicate file: load stored state, skip streaming, do NOT modify history
         setDuplicateNotice(`This file was already analyzed. Loaded from history.`);
         setSummaryText(result.summaryText ?? '');
         setChatHistory(result.chatHistory ?? []);
         setAnomalyExplanations({});
         setResolvedAnomalies(new Set());
-        setHistory(prev => {
-          const existing = prev.find(h => h.id === result.fileHash);
-          if (existing) return prev;
-          const newEntry: HistoryEntry = {
-            id: result.fileHash,
-            fileName: result.fileName,
-            propertyName: result.statement.propertyName,
-            period: result.statement.period,
-            analyzedAt: result.analyzedAt,
-          };
-          return [newEntry, ...prev].slice(0, 20);
-        });
         return;
       }
 
