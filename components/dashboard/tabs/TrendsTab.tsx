@@ -25,10 +25,8 @@ function formatPct(val: number | null): string {
 
 function formatDollar(val: number | null): string {
   if (val === null) return 'N/A';
-  const abs = Math.abs(val);
-  if (abs >= 1_000_000) return `$${(val / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `$${(val / 1_000).toFixed(1)}K`;
-  return `$${val.toFixed(0)}`;
+  const sign = val < 0 ? '-' : '';
+  return `${sign}$${Math.abs(val).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 export default function TrendsTab({ analysis }: TrendsTabProps) {

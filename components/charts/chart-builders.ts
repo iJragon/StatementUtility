@@ -354,23 +354,33 @@ export function kpiGauge(label: string, value: number | null, lo: number, hi: nu
   return { data, layout };
 }
 
-// 8. Expense heatmap
+// 8. Expense heatmap — organized by named categories using AI-extracted key figures
 export function expenseHeatmap(statement: FinancialStatement) {
   const months = statement.months;
-  const expenseRows = statement.allRows.filter(row => {
-    if (row.isHeader) return false;
-    const vals = months.map(m => row.montlyValues[m]).filter(v => v !== null && v !== undefined);
-    if (vals.length === 0) return false;
-    const avg = vals.reduce((a, b) => a + (b ?? 0), 0) / vals.length;
-    return avg < 0 || row.label.toLowerCase().includes('expense') || row.label.toLowerCase().includes('cost');
-  }).slice(0, 14);
 
-  if (expenseRows.length === 0) return { data: [], layout: {} };
+  const EXPENSE_KEYS: { key: string; label: string }[] = [
+    { key: 'total_operating_expenses', label: 'Total Operating Expenses' },
+    { key: 'controllable_expenses',    label: 'Controllable Expenses' },
+    { key: 'non_controllable_expenses', label: 'Non-Controllable Expenses' },
+    { key: 'total_payroll',            label: 'Payroll & Benefits' },
+    { key: 'management_fees',          label: 'Management Fees' },
+    { key: 'utilities',                label: 'Utilities' },
+    { key: 'real_estate_taxes',        label: 'Real Estate Taxes' },
+    { key: 'insurance',                label: 'Insurance' },
+    { key: 'replacement_expense',      label: 'Replacement Reserve' },
+    { key: 'financial_expense',        label: 'Debt Service' },
+  ];
 
-  const z = expenseRows.map(row =>
+  const rows = EXPENSE_KEYS
+    .map(({ key, label }) => ({ label, row: statement.keyFigures[key] }))
+    .filter(({ row }) => row !== undefined && months.some(m => (row!.montlyValues[m] ?? null) !== null));
+
+  if (rows.length === 0) return { data: [], layout: {} };
+
+  const z = rows.map(({ row }) =>
     months.map(m => {
-      const v = row.montlyValues[m];
-      return v !== null && v !== undefined ? Math.abs(v) : 0;
+      const v = row!.montlyValues[m];
+      return v !== null ? Math.abs(v) : 0;
     })
   );
 
@@ -378,14 +388,14 @@ export function expenseHeatmap(statement: FinancialStatement) {
     {
       type: 'heatmap',
       x: months,
-      y: expenseRows.map(r => r.label.length > 28 ? r.label.substring(0, 28) + '…' : r.label),
+      y: rows.map(r => r.label),
       z,
       colorscale: [
-        [0,   'rgba(34,197,94,0.1)'],
-        [0.3, 'rgba(34,197,94,0.45)'],
-        [0.55,'rgba(250,250,250,0.9)'],
-        [0.75,'rgba(239,68,68,0.5)'],
-        [1,   'rgba(239,68,68,0.95)'],
+        [0,    'rgba(34,197,94,0.1)'],
+        [0.3,  'rgba(34,197,94,0.45)'],
+        [0.55, 'rgba(250,250,250,0.9)'],
+        [0.75, 'rgba(239,68,68,0.5)'],
+        [1,    'rgba(239,68,68,0.95)'],
       ],
       showscale: true,
       hovertemplate: '<b>%{y}</b><br>%{x}: $%{z:,.0f}<extra></extra>',
@@ -398,10 +408,10 @@ export function expenseHeatmap(statement: FinancialStatement) {
     } as Plotly.Data,
   ];
 
-  const rowHeight = Math.max(200, expenseRows.length * 26 + 80);
+  const rowHeight = Math.max(220, rows.length * 34 + 90);
   const layout: Partial<Plotly.Layout> = {
-    title: { text: 'Expense Heatmap by Month' },
-    margin: { l: 180, r: 80, t: 48, b: 56 },
+    title: { text: 'Expense Breakdown by Category & Month' },
+    margin: { l: 210, r: 90, t: 48, b: 56 },
     height: rowHeight,
   };
 

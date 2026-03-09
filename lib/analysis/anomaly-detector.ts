@@ -23,52 +23,50 @@ function stdDev(values: number[], avg: number): number {
   return Math.sqrt(variance);
 }
 
-function isBalanceSheetAccount(accountCode: string | undefined): boolean {
-  if (!accountCode) return false;
-  const prefix = accountCode.match(/^(\d)/);
-  if (!prefix) return false;
-  const firstDigit = parseInt(prefix[1]);
-  return firstDigit === 1 || firstDigit === 2 || firstDigit === 3;
-}
-
-const CRITICAL_KEYS = new Set(['noi', 'total_revenue', 'net_income', 'cash_flow', 'total_operating_expenses']);
+const CRITICAL_KEYS = new Set([
+  'noi', 'total_revenue', 'net_income', 'cash_flow', 'total_operating_expenses',
+  'gross_potential_rent', 'vacancy_loss',
+]);
 
 export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
   const anomalies: Anomaly[] = [];
-  const { allRows, keyFigures, structure, months } = statement;
+  const { keyFigures, structure, months } = statement;
 
-  // Build a map of key figure row labels for severity boosting
+  // Build set of key figure row labels for targeted checks
+  const keyFigureLabels = new Set(Object.values(keyFigures).map(r => r.label));
   const criticalLabels = new Set(
     Object.entries(keyFigures)
       .filter(([k]) => CRITICAL_KEYS.has(k))
       .map(([, v]) => v.label),
   );
 
-  // 1. Missing data detection
-  for (const row of allRows) {
+  // ── 1. Missing data — only flag key figure rows ─────────────────────────
+  for (const [key, row] of Object.entries(keyFigures)) {
     const vals = months.map(m => row.montlyValues[m]);
     const nullCount = vals.filter(v => v === null).length;
+    if (nullCount === 0) continue;
 
-    if (nullCount === vals.length && !row.isHeader) {
+    const missingMonths = months.filter(m => row.montlyValues[m] === null);
+    const isCritical = CRITICAL_KEYS.has(key);
+
+    if (nullCount === vals.length) {
       anomalies.push({
         type: 'missing_data',
-        severity: 'low',
+        severity: isCritical ? 'high' : 'medium',
         label: row.label,
         cellRef: cellRef(structure.labelColIndex, row.rowNumber),
-        description: `Row "${row.label}" has no values across all months`,
-        detected: 'All nulls',
-        expected: 'Numeric values',
+        description: `Key figure "${row.label}" has no monthly values — this metric could not be read from the statement.`,
+        detected: 'All months are empty',
+        expected: 'Complete monthly data for this key figure',
         category: 'Data Quality',
       });
-    } else if (nullCount > 0 && nullCount < vals.length && !row.isHeader) {
-      const missingMonths = months.filter(m => row.montlyValues[m] === null);
-      const severity = criticalLabels.has(row.label) ? 'high' : nullCount >= vals.length / 2 ? 'medium' : 'low';
+    } else if (nullCount >= 2) {
       anomalies.push({
         type: 'missing_data',
-        severity,
+        severity: isCritical ? 'medium' : 'low',
         label: row.label,
         cellRef: cellRef(structure.labelColIndex, row.rowNumber),
-        description: `Row "${row.label}" is missing data for: ${missingMonths.join(', ')}`,
+        description: `"${row.label}" is missing data for ${nullCount} month(s): ${missingMonths.join(', ')}`,
         detected: `Missing ${nullCount} of ${vals.length} months`,
         expected: 'Complete monthly data',
         category: 'Data Quality',
@@ -76,155 +74,136 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     }
   }
 
-  // 2. Sign change detection (skip balance sheet accounts)
-  for (const row of allRows) {
-    if (isBalanceSheetAccount(row.accountCode)) continue;
-    if (row.isHeader) continue;
-
+  // ── 2. Sign changes — key figure rows only, minimum magnitude $500 ──────
+  for (const row of Object.values(keyFigures)) {
     const vals = months.map(m => row.montlyValues[m]).filter((v): v is number => v !== null);
-    if (vals.length < 2) continue;
+    if (vals.length < 3) continue;
 
     const positiveCount = vals.filter(v => v > 0).length;
     const negativeCount = vals.filter(v => v < 0).length;
+    if (positiveCount === 0 || negativeCount === 0) continue;
 
-    if (positiveCount > 0 && negativeCount > 0) {
-      // Find where sign changes happen
-      const signChanges: string[] = [];
-      const nonNullMonths = months.filter(m => row.montlyValues[m] !== null);
-      for (let i = 1; i < nonNullMonths.length; i++) {
-        const prev = row.montlyValues[nonNullMonths[i - 1]]!;
-        const curr = row.montlyValues[nonNullMonths[i]]!;
-        if ((prev > 0 && curr < 0) || (prev < 0 && curr > 0)) {
-          signChanges.push(`${nonNullMonths[i - 1]} → ${nonNullMonths[i]}`);
-        }
-      }
+    // Only flag if the sign-changing values have meaningful magnitude
+    const maxAbsVal = Math.max(...vals.map(Math.abs));
+    if (maxAbsVal < 500) continue;
 
-      if (signChanges.length > 0) {
-        const isCritical = criticalLabels.has(row.label);
-        anomalies.push({
-          type: 'sign_change',
-          severity: isCritical ? 'high' : 'medium',
-          label: row.label,
-          cellRef: cellRef(structure.labelColIndex, row.rowNumber),
-          description: `"${row.label}" changes sign between months: ${signChanges.join('; ')}`,
-          detected: `Sign changes at: ${signChanges.join(', ')}`,
-          expected: 'Consistent sign throughout period',
-          category: 'Sign Anomaly',
-        });
+    const signChanges: string[] = [];
+    const nonNullMonths = months.filter(m => row.montlyValues[m] !== null);
+    for (let i = 1; i < nonNullMonths.length; i++) {
+      const prev = row.montlyValues[nonNullMonths[i - 1]]!;
+      const curr = row.montlyValues[nonNullMonths[i]]!;
+      if ((prev > 0 && curr < 0) || (prev < 0 && curr > 0)) {
+        signChanges.push(`${nonNullMonths[i - 1]} → ${nonNullMonths[i]}`);
       }
+    }
+
+    if (signChanges.length > 0) {
+      const isCritical = criticalLabels.has(row.label);
+      anomalies.push({
+        type: 'sign_change',
+        severity: isCritical ? 'high' : 'medium',
+        label: row.label,
+        cellRef: cellRef(structure.labelColIndex, row.rowNumber),
+        description: `"${row.label}" flips between positive and negative values at: ${signChanges.join('; ')}. This may indicate adjustments, credits, or data entry errors.`,
+        detected: `Sign changes: ${signChanges.join(', ')}`,
+        expected: 'Consistent sign across all months',
+        category: 'Sign Anomaly',
+      });
     }
   }
 
-  // 3. Outlier detection: values > 2.5 std deviations from monthly mean per row
-  for (const row of allRows) {
+  // ── 3. Statistical outliers — non-header, non-subtotal, key figure rows ─
+  for (const row of Object.values(keyFigures)) {
     if (row.isHeader || row.isSubtotal) continue;
     const vals = months.map(m => row.montlyValues[m]).filter((v): v is number => v !== null);
-    if (vals.length < 4) continue;
+    if (vals.length < 6) continue; // need enough months for meaningful statistics
 
     const avg = mean(vals);
     const std = stdDev(vals, avg);
-    if (std === 0) continue;
+    if (std < 500) continue; // ignore rows with negligible variance
 
     for (const month of months) {
       const val = row.montlyValues[month];
       if (val === null) continue;
       const zScore = Math.abs((val - avg) / std);
-      if (zScore > 2.5) {
+      const absDeviation = Math.abs(val - avg);
+
+      if (zScore > 3.0 && absDeviation > 1000) {
         const monthColIndex = structure.monthColumns.find(mc => mc.label === month)?.colIndex ?? structure.labelColIndex;
+        const severity = zScore > 4.5 ? 'high' : 'medium';
         anomalies.push({
           type: 'outlier',
-          severity: zScore > 3.5 ? 'high' : 'medium',
+          severity,
           label: row.label,
           cellRef: cellRef(monthColIndex, row.rowNumber),
-          description: `"${row.label}" has an outlier value in ${month}: ${val.toFixed(0)} (z-score: ${zScore.toFixed(1)})`,
-          detected: `Value: ${val.toFixed(2)} (z=${zScore.toFixed(1)})`,
-          expected: `Near mean of ${avg.toFixed(2)} ± ${std.toFixed(2)}`,
+          description: `"${row.label}" has an unusually ${val > avg ? 'high' : 'low'} value in ${month}: $${val.toLocaleString('en-US', { maximumFractionDigits: 0 })} vs. typical $${avg.toLocaleString('en-US', { maximumFractionDigits: 0 })} (z-score: ${zScore.toFixed(1)})`,
+          detected: `$${val.toLocaleString('en-US', { maximumFractionDigits: 0 })} (z=${zScore.toFixed(1)})`,
+          expected: `Near $${avg.toLocaleString('en-US', { maximumFractionDigits: 0 })} ± $${std.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
           category: 'Statistical Outlier',
         });
       }
     }
   }
 
-  // 4. Cash flow vs net income divergence
+  // ── 4. Cash flow vs net income annual divergence ─────────────────────────
   const cashFlowRow = keyFigures['cash_flow'];
   const netIncomeRow = keyFigures['net_income'];
   if (cashFlowRow && netIncomeRow) {
     const cfTotal = cashFlowRow.annualTotal;
     const niTotal = netIncomeRow.annualTotal;
-    if (cfTotal !== null && niTotal !== null && niTotal !== 0) {
+    if (cfTotal !== null && niTotal !== null && Math.abs(niTotal) > 1000) {
       const divergence = Math.abs(cfTotal - niTotal) / Math.abs(niTotal);
-      if (divergence > 0.2) {
+      if (divergence > 0.30) {
+        const severity = divergence > 0.60 ? 'high' : 'medium';
         anomalies.push({
           type: 'cashflow_vs_netincome',
-          severity: 'high',
-          label: 'Cash Flow vs Net Income',
+          severity,
+          label: 'Cash Flow vs Net Income Divergence',
           cellRef: cellRef(structure.labelColIndex, cashFlowRow.rowNumber),
-          description: `Annual Cash Flow ($${cfTotal.toFixed(0)}) diverges from Net Income ($${niTotal.toFixed(0)}) by ${(divergence * 100).toFixed(1)}%`,
-          detected: `CF: $${cfTotal.toFixed(0)}, NI: $${niTotal.toFixed(0)}`,
-          expected: 'Cash flow and net income should be within ~20% of each other',
+          description: `Annual Cash Flow ($${cfTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}) diverges from Net Income ($${niTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}) by ${(divergence * 100).toFixed(1)}%. Large divergences can indicate significant non-cash charges, deferred items, or balance sheet movements.`,
+          detected: `CF: $${cfTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}, NI: $${niTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+          expected: 'Cash flow and net income within 30% of each other',
           category: 'Financial Consistency',
         });
       }
-
-      // Check monthly divergences too
-      for (const month of months) {
-        const cfVal = cashFlowRow.montlyValues[month];
-        const niVal = netIncomeRow.montlyValues[month];
-        if (cfVal !== null && niVal !== null && niVal !== 0) {
-          const mDivergence = Math.abs(cfVal - niVal) / Math.abs(niVal);
-          if (mDivergence > 0.5) {
-            const monthColIndex = structure.monthColumns.find(mc => mc.label === month)?.colIndex ?? structure.labelColIndex;
-            anomalies.push({
-              type: 'cashflow_vs_netincome',
-              severity: 'medium',
-              label: `Cash Flow vs Net Income (${month})`,
-              cellRef: cellRef(monthColIndex, cashFlowRow.rowNumber),
-              description: `In ${month}, Cash Flow ($${cfVal.toFixed(0)}) diverges from Net Income ($${niVal.toFixed(0)}) by ${(mDivergence * 100).toFixed(1)}%`,
-              detected: `CF: $${cfVal.toFixed(0)}, NI: $${niVal.toFixed(0)}`,
-              expected: 'Monthly cash flow and net income should be closely aligned',
-              category: 'Financial Consistency',
-            });
-          }
-        }
-      }
     }
   }
 
-  // 5. Negative NOI detection
+  // ── 5. Negative annual NOI ───────────────────────────────────────────────
   const noiRow = keyFigures['noi'];
-  if (noiRow) {
-    if (noiRow.annualTotal !== null && noiRow.annualTotal < 0) {
+  if (noiRow && noiRow.annualTotal !== null && noiRow.annualTotal < 0) {
+    anomalies.push({
+      type: 'negative_noi',
+      severity: 'high',
+      label: 'Negative Annual Net Operating Income',
+      cellRef: cellRef(structure.labelColIndex, noiRow.rowNumber),
+      description: `Annual NOI is negative: $${noiRow.annualTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}. The property's operating expenses exceed its revenue — the property is running at an operating loss.`,
+      detected: `NOI: $${noiRow.annualTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+      expected: 'NOI should be positive for a viable investment property',
+      category: 'Critical Performance',
+    });
+  }
+
+  // ── 6. Vacancy rate concern ──────────────────────────────────────────────
+  const vacancyRow = keyFigures['vacancy_loss'];
+  const gprRow = keyFigures['gross_potential_rent'];
+  if (vacancyRow && gprRow && gprRow.annualTotal && Math.abs(gprRow.annualTotal) > 0) {
+    const vacancyPct = (Math.abs(vacancyRow.annualTotal ?? 0) / Math.abs(gprRow.annualTotal)) * 100;
+    if (vacancyPct > 10) {
       anomalies.push({
-        type: 'negative_noi',
-        severity: 'high',
-        label: 'Negative Annual NOI',
-        cellRef: cellRef(structure.labelColIndex, noiRow.rowNumber),
-        description: `Annual NOI is negative: $${noiRow.annualTotal.toFixed(0)}. The property is operating at a loss.`,
-        detected: `NOI: $${noiRow.annualTotal.toFixed(0)}`,
-        expected: 'NOI should be positive for a viable property',
-        category: 'Critical Performance',
+        type: 'sign_change' as Anomaly['type'],
+        severity: vacancyPct > 20 ? 'high' : 'medium',
+        label: 'Elevated Vacancy Rate',
+        cellRef: cellRef(structure.labelColIndex, vacancyRow.rowNumber),
+        description: `Annual vacancy rate is ${vacancyPct.toFixed(1)}%, which is above the healthy threshold of 7%. This represents $${Math.abs(vacancyRow.annualTotal ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })} in lost potential revenue.`,
+        detected: `Vacancy: ${vacancyPct.toFixed(1)}%`,
+        expected: 'Vacancy rate below 7%',
+        category: 'Occupancy Risk',
       });
     }
-
-    for (const month of months) {
-      const val = noiRow.montlyValues[month];
-      if (val !== null && val < 0) {
-        const monthColIndex = structure.monthColumns.find(mc => mc.label === month)?.colIndex ?? structure.labelColIndex;
-        anomalies.push({
-          type: 'negative_noi',
-          severity: 'medium',
-          label: `Negative NOI in ${month}`,
-          cellRef: cellRef(monthColIndex, noiRow.rowNumber),
-          description: `NOI in ${month} is negative: $${val.toFixed(0)}`,
-          detected: `NOI: $${val.toFixed(0)}`,
-          expected: 'Monthly NOI should be positive',
-          category: 'Critical Performance',
-        });
-      }
-    }
   }
 
-  // Sort by severity
+  // Sort: high → medium → low
   const severityOrder = { high: 0, medium: 1, low: 2 };
   anomalies.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 

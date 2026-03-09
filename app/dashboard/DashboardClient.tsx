@@ -25,17 +25,22 @@ interface DashboardClientProps {
   initialHistory: HistoryEntry[];
 }
 
-const TABS = [
+const ANALYSIS_TABS = [
   { id: 'summary', label: 'Summary' },
   { id: 'revenue', label: 'Revenue' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'ratios', label: 'Ratios' },
   { id: 'trends', label: 'Trends' },
   { id: 'anomalies', label: 'Anomalies' },
+];
+
+const TOOL_TABS = [
   { id: 'deal', label: 'Deal Details' },
   { id: 'chat', label: 'Chat' },
   { id: 'charts', label: 'Charts' },
 ];
+
+const TABS = [...ANALYSIS_TABS, ...TOOL_TABS];
 
 export default function DashboardClient({ userEmail, initialHistory }: DashboardClientProps) {
   const router = useRouter();
@@ -301,7 +306,8 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
             className="flex border-b overflow-x-auto"
             style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}
           >
-            {TABS.map(tab => (
+            {/* Analysis tabs */}
+            {ANALYSIS_TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -320,6 +326,33 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
                     {analysis.anomalies.filter(a => a.severity === 'high').length}
                   </span>
                 )}
+              </button>
+            ))}
+
+            {/* Separator between analysis and interactive tools */}
+            <div
+              className="flex items-center px-2 self-stretch"
+              style={{ borderLeft: '1px solid var(--border)', margin: '6px 4px' }}
+            />
+            <span
+              className="self-center px-2 text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
+              style={{ color: 'var(--muted)', opacity: 0.5 }}
+            >
+              Tools
+            </span>
+
+            {/* Interactive tool tabs */}
+            {TOOL_TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors"
+                style={{
+                  color: activeTab === tab.id ? 'var(--accent)' : 'var(--muted)',
+                  borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                }}
+              >
+                {tab.label}
               </button>
             ))}
           </div>

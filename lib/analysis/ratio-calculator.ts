@@ -17,29 +17,6 @@ function safeDiv(num: number | null, den: number | null): number | null {
   return num / den;
 }
 
-function monthlyRatio(
-  statement: FinancialStatement,
-  numKey: string,
-  denKey: string,
-  absNum = false,
-  absDen = false,
-  scale = 100,
-): Record<string, number | null> {
-  const numVals = getMonthly(statement, numKey);
-  const denVals = getMonthly(statement, denKey);
-  const result: Record<string, number | null> = {};
-  for (const month of statement.months) {
-    const n = absNum ? Math.abs(numVals[month] ?? 0) : (numVals[month] ?? null);
-    const d = absDen ? Math.abs(denVals[month] ?? 0) : (denVals[month] ?? null);
-    const num = numVals[month] !== undefined ? (absNum ? Math.abs(numVals[month] ?? 0) : numVals[month]) : null;
-    const den = denVals[month] !== undefined ? (absDen ? Math.abs(denVals[month] ?? 0) : denVals[month]) : null;
-    result[month] = safeDiv(num !== null && absNum ? Math.abs(num) : num, den !== null && absDen ? Math.abs(den!) : den) !== null
-      ? (safeDiv(num !== null && absNum ? Math.abs(num!) : num, den !== null && absDen ? Math.abs(den!) : den)! * scale)
-      : null;
-  }
-  return result;
-}
-
 function monthlyDivide(
   statement: FinancialStatement,
   numKey: string,
@@ -84,6 +61,13 @@ function statusForDscr(value: number | null): 'good' | 'warning' | 'bad' | 'unkn
   return 'bad';
 }
 
+function statusForMinimum(value: number | null, goodThreshold: number, warnThreshold: number): 'good' | 'warning' | 'bad' | 'unknown' {
+  if (value === null) return 'unknown';
+  if (value >= goodThreshold) return 'good';
+  if (value >= warnThreshold) return 'warning';
+  return 'bad';
+}
+
 export function calculateRatios(statement: FinancialStatement): RatioReport {
   const totalRev = getAnnual(statement, 'total_revenue');
   const totalOpEx = getAnnual(statement, 'total_operating_expenses');
@@ -116,7 +100,7 @@ export function calculateRatios(statement: FinancialStatement): RatioReport {
   const noiMargin: RatioResult = {
     value: noiMarginPct,
     monthly: monthlyDivide(statement, 'noi', 'total_revenue', false, true, 100),
-    status: statusForRange(noiMarginPct, 40, 65, '%', true),
+    status: statusForMinimum(noiMarginPct, 40, 25),
     benchmark: '40% – 65%',
     label: 'NOI Margin',
     unit: '%',
@@ -215,7 +199,7 @@ export function calculateRatios(statement: FinancialStatement): RatioReport {
   const cashFlowMargin: RatioResult = {
     value: cfPct,
     monthly: monthlyDivide(statement, 'cash_flow', 'total_revenue', false, true, 100),
-    status: statusForRange(cfPct, 5, 100, '%', true),
+    status: statusForMinimum(cfPct, 5, 0),
     benchmark: '5% – 100%',
     label: 'Cash Flow Margin',
     unit: '%',
