@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useRef, useCallback } from 'react';
+
 const GLOSSARY: Record<string, string> = {
   'Operating Expense Ratio': 'The % of revenue consumed by operating costs. Lower is better — above 55% signals thin margins.',
   'Net Operating Income': 'Revenue minus all operating expenses, before any debt payments. The primary profitability metric for rental property.',
@@ -27,31 +29,75 @@ interface TooltipProps {
   children: React.ReactNode;
 }
 
+interface Coords { top: number; left: number }
+
 export default function Tooltip({ term, children }: TooltipProps) {
   const definition = GLOSSARY[term];
+  const [visible, setVisible] = useState(false);
+  const [coords, setCoords] = useState<Coords>({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  const show = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const tooltipWidth = 272;
+    const tooltipEstHeight = 90; // rough estimate
+    const padding = 12;
+
+    let left = rect.left;
+    // Clamp horizontally so it doesn't bleed off screen
+    if (left + tooltipWidth > window.innerWidth - padding) {
+      left = window.innerWidth - tooltipWidth - padding;
+    }
+    if (left < padding) left = padding;
+
+    // Position above by default; flip below if not enough space
+    let top = rect.top - tooltipEstHeight - 8;
+    if (top < padding) {
+      top = rect.bottom + 8; // flip to below
+    }
+
+    setCoords({ top, left });
+    setVisible(true);
+  }, []);
+
+  const hide = useCallback(() => setVisible(false), []);
+
   if (!definition) return <>{children}</>;
 
   return (
-    <span className="relative group inline-flex items-center gap-1 cursor-help">
-      {children}
+    <>
       <span
-        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold flex-shrink-0 select-none"
-        style={{ backgroundColor: 'var(--border)', color: 'var(--muted)' }}
+        ref={triggerRef}
+        className="inline-flex items-center gap-1 cursor-help"
+        onMouseEnter={show}
+        onMouseLeave={hide}
       >
-        ?
+        {children}
+        <span
+          className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold flex-shrink-0 select-none"
+          style={{ backgroundColor: 'var(--border)', color: 'var(--muted)' }}
+        >
+          ?
+        </span>
       </span>
-      <span
-        className="pointer-events-none absolute bottom-full left-0 mb-2 z-50 w-64 rounded-md p-2.5 text-xs leading-5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg"
-        style={{
-          backgroundColor: 'var(--surface)',
-          color: 'var(--text)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        <strong>{term}</strong>
-        <br />
-        {definition}
-      </span>
-    </span>
+
+      {visible && (
+        <span
+          className="pointer-events-none fixed z-[9999] w-68 rounded-md p-3 text-xs leading-5 shadow-xl"
+          style={{
+            top: coords.top,
+            left: coords.left,
+            width: 272,
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+          }}
+        >
+          <strong className="block mb-0.5">{term}</strong>
+          {definition}
+        </span>
+      )}
+    </>
   );
 }
