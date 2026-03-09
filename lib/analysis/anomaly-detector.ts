@@ -277,7 +277,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     }
   }
 
-  // Deduplicate: for each (label, type) pair keep only the highest-severity entry
+  // Deduplicate step 1: for each (label, type) pair keep only the highest-severity entry
   const seen = new Map<string, number>();
   const deduped: Anomaly[] = [];
   const severityOrder = { high: 0, medium: 1, low: 2 };
@@ -292,6 +292,18 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     }
   }
 
-  deduped.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
-  return deduped;
+  // Deduplicate step 2: suppress implied anomalies for the same label
+  // - outlier is implied by sign_change (sign flip causes extreme deviations)
+  // - sign_change is implied by negative_noi (already the more specific finding)
+  const labelsWithSignChange = new Set(deduped.filter(a => a.type === 'sign_change').map(a => a.label));
+  const labelsWithNegativeNoi = new Set(deduped.filter(a => a.type === 'negative_noi').map(a => a.label));
+
+  const filtered = deduped.filter(a => {
+    if (a.type === 'outlier' && labelsWithSignChange.has(a.label)) return false;
+    if (a.type === 'sign_change' && labelsWithNegativeNoi.has(a.label)) return false;
+    return true;
+  });
+
+  filtered.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  return filtered;
 }
