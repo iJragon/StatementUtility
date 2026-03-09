@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { LineItem, SheetStructure, FinancialStatement } from '../models/statement';
+import { extractKeyFiguresWithAI } from './ai-extractor';
 
 const MONTH_REGEX = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
 
@@ -14,76 +15,11 @@ const MONTH_ABBREVIATIONS: Record<string, string> = {
 
 const ACCOUNT_CODE_REGEX = /^\d{3,5}-\d{3,5}$/;
 
-const KEY_FIGURE_PATTERNS: Record<string, string[]> = {
-  total_revenue: ["total revenue", "effective gross income", "total income"],
-  gross_potential_rent: ["gross potential rent", "gross potential", "potential rental revenue", "scheduled rent"],
-  vacancy_loss: ["loss due to vacancies", "vacancy apartments", "vacancy loss", "physical vacancy loss", "economic vacancy loss", "physical vacancy", "economic vacancy", "vacancy"],
-  concession_loss: ["concession", "concessions", "rent concession"],
-  bad_debt: ["bad debt", "bad debts", "uncollectible"],
-  net_rental_revenue: ["net rental revenue", "net rent", "net rental income"],
-  other_tenant_charges: ["other tenant charges", "other income", "other revenue", "ancillary income"],
-  controllable_expenses: ["controllable", "total controllable", "controllable total"],
-  non_controllable_expenses: ["non-controllable", "non controllable", "fixed expenses", "total non-controllable"],
-  total_operating_expenses: ["total operating expenses", "total expenses", "operating expenses total"],
-  noi: ["net operating income", "noi", "net operating income (loss)"],
-  total_payroll: ["payroll", "total payroll", "personnel", "labor"],
-  management_fees: ["management fee", "management fees", "mgmt fee"],
-  utilities: ["utilities", "total utilities", "utility expenses"],
-  real_estate_taxes: ["real estate taxes", "property taxes", "re taxes"],
-  insurance: ["insurance", "property insurance"],
-  financial_expense: ["total debt service", "debt service", "mortgage payment", "interest expense", "principal and interest", "loan payment", "financial expense", "financing expense", "total financial"],
-  replacement_expense: ["replacement", "replacement reserve", "capital reserve"],
-  total_non_operating: ["total non-operating", "non-operating", "below the line"],
-  net_income: ["net income", "net income (loss)", "bottom line"],
-  cash_flow: ["cash flow", "net cash flow", "cash flow from operations"],
-};
-
-// For these key figures, the row label must contain the given substring (case-insensitive, normalized).
-// Prevents broad word-overlap matches from winning (e.g. "TOTAL LOSS" matching vacancy_loss via the word "loss").
-const KEY_FIGURE_REQUIRED_SUBSTRING: Partial<Record<string, string>> = {
-  vacancy_loss: 'vacanc',
-};
-
 function normalizeLabel(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim();
 }
 
-function substringMatchScore(label: string, pattern: string): number {
-  const normLabel = normalizeLabel(label);
-  const normPattern = normalizeLabel(pattern);
-  if (normLabel === normPattern) return 100;
-  if (normLabel.includes(normPattern) || normPattern.includes(normLabel)) {
-    const longerLen = Math.max(normLabel.length, normPattern.length);
-    const shorterLen = Math.min(normLabel.length, normPattern.length);
-    return (shorterLen / longerLen) > 0.6 ? 50 : 10;
-  }
-  // Word overlap
-  const labelWords = normLabel.split(/\s+/);
-  const patternWords = normPattern.split(/\s+/);
-  const overlap = labelWords.filter(w => patternWords.includes(w)).length;
-  if (overlap > 0) return Math.floor((overlap / patternWords.length) * 40);
-  return 0;
-}
-
-function scoreRowForKeyFigure(row: LineItem, patterns: string[]): number {
-  let maxScore = 0;
-  for (const pattern of patterns) {
-    const s = substringMatchScore(row.label, pattern);
-    if (s > maxScore) maxScore = s;
-  }
-  if (maxScore === 0) return 0;
-
-  let score = maxScore;
-  // Has non-null values in month columns
-  const hasValues = Object.values(row.montlyValues).some(v => v !== null);
-  if (hasValues) score += 20;
-  else score -= 40; // heavy penalty for header/section rows with no data — prevents section headers beating data subtotals
-  if (row.isSubtotal) score += 15;
-  score += 10; // any match bonus
-  return score;
-}
-
-function colIndexToLetter(colIndex: number): string {
+export function colIndexToLetter(colIndex: number): string {
   let result = '';
   let col = colIndex;
   while (col >= 0) {
@@ -123,23 +59,24 @@ function detectIndentLevel(rawLabel: string): number {
   return Math.floor(leading[1].length / 2);
 }
 
-function isHeaderRow(rawLabel: string): boolean {
-  const norm = normalizeLabel(rawLabel);
-  // Usually all caps or ends with colon
-  return rawLabel === rawLabel.toUpperCase() || rawLabel.trim().endsWith(':');
-}
-
 function isSubtotalRow(rawLabel: string, colValues: (number | null)[]): boolean {
   const norm = normalizeLabel(rawLabel);
-  const hasTotal = norm.startsWith('total') || norm.includes('subtotal') || norm.includes('total ');
-  const hasValues = colValues.filter(v => v !== null).length > 0;
+  const hasTotal = norm.startsWith('total') || norm.includes('subtotal');
+  const hasValues = colValues.some(v => v !== null);
   return hasTotal && hasValues;
+}
+
+function isHeaderRow(rawLabel: string, colValues: (number | null)[]): boolean {
+  // A header/section label row has no numeric data in any month column
+  const hasValues = colValues.some(v => v !== null);
+  if (hasValues) return false;
+  return rawLabel === rawLabel.toUpperCase() || rawLabel.trim().endsWith(':');
 }
 
 export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialStatement> {
   const workbook = XLSX.read(data, { type: 'buffer', cellStyles: true, cellDates: false });
 
-  // Pick best sheet
+  // Pick the most relevant sheet
   const preferredPatterns = ['report', "p&l", 'income', 'statement', 'pl'];
   let sheetName = workbook.SheetNames[0];
   for (const name of workbook.SheetNames) {
@@ -151,13 +88,15 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
   }
 
   const sheet = workbook.Sheets[sheetName];
-  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true }) as unknown[][];
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: null,
+    raw: true,
+  }) as unknown[][];
 
-  if (rawRows.length === 0) {
-    throw new Error('Empty sheet');
-  }
+  if (rawRows.length === 0) throw new Error('Empty sheet');
 
-  // Find header row: first row with >= 3 month-like values
+  // ── 1. Detect header row: first row containing ≥ 3 month names ──────────────
   let headerRowIndex = -1;
   let monthColumns: Array<{ colIndex: number; label: string }> = [];
   let totalColIndex: number | undefined = undefined;
@@ -184,14 +123,13 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     }
   }
 
+  // Fallback: look for rows with many numeric values
   if (headerRowIndex === -1) {
-    // Fallback: try to find any row with numbers in multiple columns
     for (let r = 0; r < Math.min(rawRows.length, 50); r++) {
       const row = rawRows[r];
       const numCount = row.filter(c => typeof c === 'number').length;
       if (numCount >= 3) {
         headerRowIndex = r > 0 ? r - 1 : r;
-        // Generate synthetic month labels
         const numRow = rawRows[headerRowIndex + 1] ?? rawRows[headerRowIndex];
         for (let c = 0; c < numRow.length; c++) {
           if (typeof numRow[c] === 'number') {
@@ -207,7 +145,10 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     throw new Error('Could not detect month columns in the Excel file');
   }
 
-  // Detect label column: find the column with widest/most text content in data rows
+  // ── 2. Detect label column (highest cumulative text length, excluding data cols) ──
+  const excludedCols = new Set(monthColumns.map(m => m.colIndex));
+  if (totalColIndex !== undefined) excludedCols.add(totalColIndex);
+
   const colTextLengths: number[] = [];
   for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
     const row = rawRows[r];
@@ -219,10 +160,6 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     }
   }
 
-  // Exclude month columns and total column from label column candidates
-  const excludedCols = new Set(monthColumns.map(m => m.colIndex));
-  if (totalColIndex !== undefined) excludedCols.add(totalColIndex);
-
   let labelColIndex = 0;
   let maxTextLen = 0;
   for (let c = 0; c < colTextLengths.length; c++) {
@@ -232,14 +169,13 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     }
   }
 
-  // Detect account code column
+  // ── 3. Detect account code column ──────────────────────────────────────────
   let accountColIndex: number | undefined = undefined;
   for (let r = headerRowIndex + 1; r < Math.min(rawRows.length, headerRowIndex + 20); r++) {
     const row = rawRows[r];
     for (let c = 0; c < row.length; c++) {
       if (c === labelColIndex || excludedCols.has(c)) continue;
-      const cell = String(row[c] ?? '').trim();
-      if (ACCOUNT_CODE_REGEX.test(cell)) {
+      if (ACCOUNT_CODE_REGEX.test(String(row[c] ?? '').trim())) {
         accountColIndex = c;
         break;
       }
@@ -247,30 +183,18 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     if (accountColIndex !== undefined) break;
   }
 
-  // Extract metadata from rows above header
-  let propertyName = '';
-  let period = '';
-  let bookType = '';
-
+  // ── 4. Build header text for AI metadata context ───────────────────────────
+  const headerLines: string[] = [];
   for (let r = 0; r < headerRowIndex; r++) {
-    const row = rawRows[r];
-    for (const cell of row) {
-      const val = String(cell ?? '').trim();
-      if (!val) continue;
-      const lower = val.toLowerCase();
-      if (!propertyName && val.length > 3 && !lower.includes('report') && !lower.includes('period')) {
-        propertyName = val;
-      }
-      if (!period && (lower.includes('20') || lower.includes('jan') || lower.includes('dec'))) {
-        period = val;
-      }
-      if (!bookType && (lower.includes('accrual') || lower.includes('cash') || lower.includes('gaap'))) {
-        bookType = val;
-      }
-    }
+    const vals = rawRows[r]
+      .filter(c => c !== null && c !== '')
+      .map(c => String(c).trim())
+      .filter(Boolean);
+    if (vals.length > 0) headerLines.push(vals.join(' | '));
   }
+  const headerText = headerLines.join(' — ');
 
-  // Parse data rows into LineItems
+  // ── 5. Parse all data rows into LineItems ──────────────────────────────────
   const allRows: LineItem[] = [];
   const months = monthColumns.map(m => m.label);
 
@@ -283,8 +207,7 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
 
     const monthlyValues: Record<string, number | null> = {};
     for (const mc of monthColumns) {
-      const val = parseNumericValue(row[mc.colIndex]);
-      monthlyValues[mc.label] = val;
+      monthlyValues[mc.label] = parseNumericValue(row[mc.colIndex]);
     }
 
     const annualTotal = totalColIndex !== undefined
@@ -299,56 +222,37 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
       : undefined;
 
     const colValues = Object.values(monthlyValues);
-    const item: LineItem = {
+    allRows.push({
       label: rawLabel,
       montlyValues: monthlyValues,
       annualTotal,
       rowNumber: r + 1,
       accountCode,
       isSubtotal: isSubtotalRow(rawLabel, colValues),
-      isHeader: isHeaderRow(rawLabel) && colValues.every(v => v === null),
+      isHeader: isHeaderRow(rawLabel, colValues),
       indentLevel: detectIndentLevel(String(row[labelColIndex] ?? '')),
-    };
-    allRows.push(item);
+    });
   }
 
-  // Extract key figures via fuzzy matching
-  const keyFigures: Record<string, LineItem> = {};
-  for (const [keyName, patterns] of Object.entries(KEY_FIGURE_PATTERNS)) {
-    const requiredSubstring = KEY_FIGURE_REQUIRED_SUBSTRING[keyName];
-    let bestScore = 0;
-    let bestRow: LineItem | null = null;
-    for (const row of allRows) {
-      // Skip rows that don't contain the required substring (prevents false-positive word-overlap matches)
-      if (requiredSubstring && !normalizeLabel(row.label).includes(requiredSubstring)) continue;
-      const score = scoreRowForKeyFigure(row, patterns);
-      if (score > bestScore) {
-        bestScore = score;
-        bestRow = row;
-      }
-    }
-    if (bestRow && bestScore >= 30) {
-      keyFigures[keyName] = bestRow;
-    }
-  }
-
-  const structure: SheetStructure = {
-    headerRowIndex,
-    monthColumns,
-    totalColIndex,
-    labelColIndex,
-    accountColIndex,
-  };
+  // ── 6. AI-based key figure extraction ─────────────────────────────────────
+  // The AI receives the full numbered row list and identifies which row
+  // corresponds to each financial concept, regardless of naming or layout.
+  const { keyFigures, propertyName, period, bookType } =
+    await extractKeyFiguresWithAI(allRows, headerText);
 
   return {
-    propertyName: propertyName || 'Unknown Property',
-    period: period || 'Unknown Period',
-    bookType: bookType || 'Accrual',
+    propertyName,
+    period,
+    bookType,
     months,
     allRows,
     keyFigures,
-    structure,
+    structure: {
+      headerRowIndex,
+      monthColumns,
+      totalColIndex,
+      labelColIndex,
+      accountColIndex,
+    },
   };
 }
-
-export { colIndexToLetter };
