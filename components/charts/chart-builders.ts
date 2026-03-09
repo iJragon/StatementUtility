@@ -412,11 +412,11 @@ export function expenseHeatmap(statement: FinancialStatement) {
       z,
       customdata,
       colorscale: [
-        [0,    '#15803d'],  // semi-dark green — well below average (desirable)
-        [0.35, '#86efac'],  // light green — slightly below average (doing okay)
-        [0.5,  '#fbbf24'],  // yellow — near average (neutral)
-        [0.65, '#f97316'],  // orange — slightly above average (less bad)
-        [1,    '#dc2626'],  // red — well above average (really bad)
+        [0,    '#16a34a'],  // green — well below average (good)
+        [0.35, '#86efac'],  // light green — slightly below average
+        [0.5,  '#f1f5f9'],  // near-white — average (neutral, no signal)
+        [0.65, '#fca5a5'],  // light red — slightly above average
+        [1,    '#dc2626'],  // red — well above average (bad)
       ],
       zmin: 0,
       zmax: 1,
