@@ -148,7 +148,7 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
         return [newEntry, ...prev].slice(0, 20);
       });
 
-      // Stream executive summary
+      // Stream executive summary then persist it
       setSummaryStreaming(true);
       const context = buildFinancialContext(result.statement, result.ratios, result.anomalies, result.trends);
       let summaryAcc = '';
@@ -161,6 +161,12 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
             setSummaryText(summaryAcc);
           },
         );
+        // Save summary to DB so it's available on history reload
+        fetch('/api/analyze', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileHash: result.fileHash, summaryText: summaryAcc }),
+        }).catch(console.error);
       } finally {
         setSummaryStreaming(false);
       }
@@ -234,6 +240,13 @@ export default function DashboardClient({ userEmail, initialHistory }: Dashboard
           });
         },
       );
+      // Persist updated chat history
+      const finalHistory = [...chatHistory, userMsg, { role: 'assistant' as const, content: accResponse }];
+      fetch('/api/analyze', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileHash: analysis.fileHash, chatHistory: finalHistory }),
+      }).catch(console.error);
     } finally {
       setIsChatStreaming(false);
     }

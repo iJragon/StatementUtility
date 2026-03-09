@@ -7,6 +7,39 @@ import { analyzeTrends } from '@/lib/analysis/trend-analyzer';
 import type { AnalysisResult } from '@/lib/models/statement';
 import crypto from 'crypto';
 
+export async function PATCH(request: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const { fileHash, summaryText, chatHistory } = await request.json() as {
+      fileHash: string;
+      summaryText?: string;
+      chatHistory?: Array<{ role: string; content: string }>;
+    };
+
+    const updates: Record<string, unknown> = {};
+    if (summaryText !== undefined) updates.summary_text = summaryText;
+    if (chatHistory !== undefined) updates.chat_history = chatHistory;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ success: true });
+    }
+
+    await supabase
+      .from('analyses')
+      .update(updates)
+      .eq('user_id', user.id)
+      .eq('file_hash', fileHash);
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Save error:', err);
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
