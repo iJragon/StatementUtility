@@ -4,7 +4,8 @@ import DashboardClient from './DashboardClient';
 import type { PropertyEntry } from '@/lib/models/portfolio';
 
 export interface HistoryEntry {
-  id: string;
+  id: string;       // analyses.id (UUID)
+  fileHash: string; // analyses.file_hash
   fileName: string;
   propertyName: string;
   period: string;
@@ -23,13 +24,14 @@ export default async function DashboardPage() {
 
   const { data: analyses } = await supabase
     .from('analyses')
-    .select('id, file_name, property_name, period, analyzed_at')
+    .select('id, file_hash, file_name, property_name, period, analyzed_at')
     .eq('user_id', user.id)
     .order('analyzed_at', { ascending: false })
     .limit(20);
 
   const history: HistoryEntry[] = (analyses ?? []).map((a) => ({
     id: a.id,
+    fileHash: a.file_hash,
     fileName: a.file_name,
     propertyName: a.property_name ?? 'Unknown',
     period: a.period ?? '',

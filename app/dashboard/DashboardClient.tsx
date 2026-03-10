@@ -176,10 +176,11 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       loadToolsFromStorage(result.fileHash);
 
       setHistory(prev => {
-        const existing = prev.find(h => h.id === result.fileHash);
+        const existing = prev.find(h => h.fileHash === result.fileHash);
         if (existing) return prev;
         const newEntry: HistoryEntry = {
-          id: result.fileHash,
+          id: result.fileHash, // will be replaced on next page load with real UUID
+          fileHash: result.fileHash,
           fileName: result.fileName,
           propertyName: result.statement.propertyName,
           period: result.statement.period,
@@ -406,6 +407,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     if (!res.ok) throw new Error('Failed to create property');
     const { property } = await res.json() as { property: PropertyEntry };
     setProperties(prev => [property, ...prev]);
+    // Auto-open the newly created property
+    await handlePropertySelect(property);
   }
 
   async function handlePropertyDelete(id: string) {
@@ -463,21 +466,48 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
-  async function handleAddStatement(analysisId: string, yearLabel: string) {
+  async function handleAddStatement(statements: Array<{ fileHash: string; yearLabel: string }>) {
     if (!propertyDetail) return;
     const res = await fetch(`/api/properties/${propertyDetail.id}/statements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ analysisId, yearLabel }),
+      body: JSON.stringify({ statements }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Failed to add statement' }));
       throw new Error(err.error || 'Failed to add statement');
     }
-    // Reload property to get updated data
+    const { added } = await res.json() as { added: unknown[]; errors: string[] };
+    // Reload property to get fresh data
     await handlePropertySelect({ id: propertyDetail.id, name: propertyDetail.name, address: propertyDetail.address, createdAt: propertyDetail.createdAt, statementCount: 0 });
-    // Update sidebar count
-    setProperties(prev => prev.map(p => p.id === propertyDetail.id ? { ...p, statementCount: p.statementCount + 1 } : p));
+    setProperties(prev => prev.map(p =>
+      p.id === propertyDetail.id ? { ...p, statementCount: p.statementCount + added.length } : p,
+    ));
+  }
+
+  // Analyze a file (for adding directly from the add-statement modal)
+  async function handleAnalyzeFileForProperty(file: File): Promise<AnalysisResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Analysis failed' }));
+      throw new Error(err.error || 'Analysis failed');
+    }
+    const result: AnalysisResult = await res.json();
+    // Add to history list if not already there
+    setHistory(prev => {
+      if (prev.find(h => h.fileHash === result.fileHash)) return prev;
+      return [{
+        id: result.fileHash,
+        fileHash: result.fileHash,
+        fileName: result.fileName,
+        propertyName: result.statement.propertyName,
+        period: result.statement.period,
+        analyzedAt: result.analyzedAt,
+      }, ...prev].slice(0, 20);
+    });
+    return result;
   }
 
   async function handleRemoveStatement(stmtId: string) {
@@ -529,7 +559,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               summaryStreaming={portfolioStreaming}
               history={history}
               onGenerateSummary={handlePortfolioGenerateSummary}
-              onAddStatement={handleAddStatement}
+              onAddStatements={handleAddStatement}
+              onAnalyzeFile={handleAnalyzeFileForProperty}
               onRemoveStatement={handleRemoveStatement}
               onDeleteProperty={() => handlePropertyDelete(propertyDetail.id)}
             />

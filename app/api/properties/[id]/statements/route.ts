@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// POST /api/properties/[id]/statements — add a statement to a property
+// POST /api/properties/[id]/statements — add one or more statements to a property
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -20,36 +20,52 @@ export async function POST(
     .single();
   if (!prop) return NextResponse.json({ error: 'Property not found' }, { status: 404 });
 
-  const { analysisId, yearLabel } = await request.json() as {
-    analysisId: string;
-    yearLabel?: string;
-  };
+  const body = await request.json() as
+    | { fileHash: string; yearLabel?: string }
+    | { statements: Array<{ fileHash: string; yearLabel?: string }> };
 
-  // Verify the analysis belongs to the user
-  const { data: analysis } = await supabase
-    .from('analyses')
-    .select('id, period')
-    .eq('id', analysisId)
-    .eq('user_id', user.id)
-    .single();
-  if (!analysis) return NextResponse.json({ error: 'Analysis not found' }, { status: 404 });
+  const items = 'statements' in body ? body.statements : [body];
+  const errors: string[] = [];
+  const added: unknown[] = [];
 
-  const { data, error } = await supabase
-    .from('property_statements')
-    .insert({
-      property_id: propertyId,
-      analysis_id: analysisId,
-      year_label: yearLabel?.trim() || analysis.period || '',
-    })
-    .select('id, analysis_id, year_label, added_at')
-    .single();
+  for (const item of items) {
+    // Look up by file_hash (works for both fresh analyses and history-loaded entries)
+    const { data: analysis } = await supabase
+      .from('analyses')
+      .select('id, period')
+      .eq('file_hash', item.fileHash)
+      .eq('user_id', user.id)
+      .single();
 
-  if (error) {
-    if (error.code === '23505') {
-      return NextResponse.json({ error: 'This statement is already linked to this property' }, { status: 409 });
+    if (!analysis) {
+      errors.push(`Analysis not found for hash ${item.fileHash}`);
+      continue;
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const { data, error } = await supabase
+      .from('property_statements')
+      .insert({
+        property_id: propertyId,
+        analysis_id: analysis.id,
+        year_label: item.yearLabel?.trim() || analysis.period || '',
+      })
+      .select('id, analysis_id, year_label, added_at')
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        errors.push('Already linked');
+      } else {
+        errors.push(error.message);
+      }
+    } else {
+      added.push(data);
+    }
   }
 
-  return NextResponse.json({ statement: data });
+  if (added.length === 0 && errors.length > 0) {
+    return NextResponse.json({ error: errors[0] }, { status: 409 });
+  }
+
+  return NextResponse.json({ added, errors });
 }
