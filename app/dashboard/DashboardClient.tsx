@@ -50,6 +50,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   // ── Analysis view state ────────────────────────────────────────────────────
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number; total: number } | null>(null);
   const [analyzeError, setAnalyzeError] = useState('');
   const [duplicateNotice, setDuplicateNotice] = useState('');
   const [summaryText, setSummaryText] = useState('');
@@ -64,6 +65,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   const [resolvedAnomalies, setResolvedAnomalies] = useState<Set<number>>(new Set());
   const [showForceConfirm, setShowForceConfirm] = useState(false);
   const selectedFileRef = useRef<File | null>(null);
+  const fileQueueRef = useRef<File[]>([]);
 
   // ── Portfolio view state ───────────────────────────────────────────────────
   const [properties, setProperties] = useState<PropertyEntry[]>(initialProperties);
@@ -101,8 +103,9 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   // ── File upload / analysis ─────────────────────────────────────────────────
-  const handleFileSelect = useCallback((file: File) => {
-    selectedFileRef.current = file;
+  const handleFilesSelect = useCallback((files: File[]) => {
+    fileQueueRef.current = files;
+    selectedFileRef.current = files[0] ?? null;
     setAnalyzeError('');
     setDuplicateNotice('');
   }, []);
@@ -212,7 +215,80 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
-  const handleAnalyze = () => runAnalyze(false);
+  const handleAnalyze = async () => {
+    const queue = fileQueueRef.current;
+    if (queue.length <= 1) {
+      await runAnalyze(false);
+      return;
+    }
+    // Multi-file: process sequentially, stream summary only for the last file
+    setIsAnalyzing(true);
+    setAnalyzeError('');
+    setDuplicateNotice('');
+    setActiveView('analysis');
+    setChatHistory([]);
+    setAnomalyExplanations({});
+    setResolvedAnomalies(new Set());
+
+    let lastResult: AnalysisResult | null = null;
+    for (let i = 0; i < queue.length; i++) {
+      setAnalyzeProgress({ current: i + 1, total: queue.length });
+      const file = queue[i];
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+        if (!res.ok) continue;
+        const result: AnalysisResult = await res.json();
+        lastResult = result;
+        setHistory(prev => {
+          if (prev.find(h => h.fileHash === result.fileHash)) return prev;
+          const entry: HistoryEntry = {
+            id: result.fileHash,
+            fileHash: result.fileHash,
+            fileName: result.fileName,
+            propertyName: result.statement.propertyName,
+            period: result.statement.period,
+            analyzedAt: result.analyzedAt,
+          };
+          return [entry, ...prev].slice(0, 20);
+        });
+      } catch {
+        // skip errors in batch
+      }
+    }
+    setAnalyzeProgress(null);
+    setIsAnalyzing(false);
+
+    // Show last result and stream summary
+    if (lastResult) {
+      selectedFileRef.current = queue[queue.length - 1];
+      setAnalysis(lastResult);
+      setActiveTab('summary');
+      loadToolsFromStorage(lastResult.fileHash);
+      if (!lastResult.fromCache) {
+        setSummaryStreaming(true);
+        const { buildFinancialContext } = await import('@/lib/agents/base');
+        const context = buildFinancialContext(lastResult.statement, lastResult.ratios, lastResult.anomalies, lastResult.trends);
+        let acc = '';
+        try {
+          await streamText('/api/summary', { context }, chunk => {
+            acc += chunk;
+            setSummaryText(acc);
+          });
+          fetch('/api/analyze', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileHash: lastResult.fileHash, summaryText: acc }),
+          }).catch(console.error);
+        } finally {
+          setSummaryStreaming(false);
+        }
+      } else {
+        setSummaryText(lastResult.summaryText ?? '');
+      }
+    }
+  };
 
   function handleForceAnalyze() {
     setShowForceConfirm(true);
@@ -513,9 +589,25 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   async function handleRemoveStatement(stmtId: string) {
     if (!propertyDetail) return;
     await fetch(`/api/properties/${propertyDetail.id}/statements/${stmtId}`, { method: 'DELETE' });
-    // Reload property
     await handlePropertySelect({ id: propertyDetail.id, name: propertyDetail.name, address: propertyDetail.address, createdAt: propertyDetail.createdAt, statementCount: 0 });
     setProperties(prev => prev.map(p => p.id === propertyDetail.id ? { ...p, statementCount: Math.max(0, p.statementCount - 1) } : p));
+  }
+
+  async function handleRenameStatement(stmtId: string, newLabel: string) {
+    if (!propertyDetail) return;
+    await fetch(`/api/properties/${propertyDetail.id}/statements/${stmtId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yearLabel: newLabel }),
+    });
+    // Update local state without full reload
+    setPropertyDetail(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        statements: prev.statements.map(s => s.id === stmtId ? { ...s, yearLabel: newLabel } : s),
+      };
+    });
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -528,7 +620,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         properties={properties}
         activePropertyId={activePropertyId}
         isAnalyzing={isAnalyzing}
-        onFileSelect={handleFileSelect}
+        analyzeProgress={analyzeProgress}
+        onFilesSelect={handleFilesSelect}
         onAnalyze={handleAnalyze}
         onForceAnalyze={handleForceAnalyze}
         onHistorySelect={handleHistorySelect}
@@ -536,7 +629,6 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         onClearHistory={handleClearHistory}
         onPropertySelect={handlePropertySelect}
         onPropertyCreate={handlePropertyCreate}
-        onPropertyDelete={handlePropertyDelete}
         onSignOut={handleSignOut}
       />
 
@@ -562,6 +654,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               onAddStatements={handleAddStatement}
               onAnalyzeFile={handleAnalyzeFileForProperty}
               onRemoveStatement={handleRemoveStatement}
+              onRenameStatement={handleRenameStatement}
               onDeleteProperty={() => handlePropertyDelete(propertyDetail.id)}
             />
           )
@@ -646,13 +739,13 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-6">
               {analyzeError && (
-                <div className="mb-4 p-3 rounded-md text-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
+                <div className="alert-error mb-4 p-3 rounded-md text-sm">
                   {analyzeError}
                 </div>
               )}
 
               {duplicateNotice && (
-                <div className="mb-4 p-3 rounded-md text-sm flex items-center gap-2" style={{ backgroundColor: 'rgba(59,130,246,0.08)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                <div className="alert-info mb-4 p-3 rounded-md text-sm flex items-center gap-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                   {duplicateNotice} Use Force Re-analyze in the sidebar to re-run the AI extraction.
                 </div>
@@ -688,7 +781,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               {!isAnalyzing && analysis && (
                 <>
                   {activeTab === 'summary' && (
-                    <SummaryTab analysis={analysis} summaryText={summaryText} summaryStreaming={summaryStreaming} />
+                    <SummaryTab analysis={analysis} summaryText={summaryText} summaryStreaming={summaryStreaming} onTabChange={setActiveTab} />
                   )}
                   {activeTab === 'revenue' && <RevenueTab analysis={analysis} />}
                   {activeTab === 'expenses' && <ExpensesTab analysis={analysis} />}

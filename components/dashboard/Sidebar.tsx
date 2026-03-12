@@ -11,7 +11,8 @@ interface SidebarProps {
   properties: PropertyEntry[];
   activePropertyId?: string;
   isAnalyzing: boolean;
-  onFileSelect: (file: File) => void;
+  analyzeProgress?: { current: number; total: number } | null;
+  onFilesSelect: (files: File[]) => void;
   onAnalyze: () => void;
   onForceAnalyze: () => void;
   onHistorySelect: (entry: HistoryEntry) => void;
@@ -19,7 +20,6 @@ interface SidebarProps {
   onClearHistory: () => void;
   onPropertySelect: (property: PropertyEntry) => void;
   onPropertyCreate: (name: string, address?: string) => Promise<void>;
-  onPropertyDelete: (id: string) => Promise<void>;
   onSignOut: () => void;
 }
 
@@ -38,7 +38,8 @@ export default function Sidebar({
   properties,
   activePropertyId,
   isAnalyzing,
-  onFileSelect,
+  analyzeProgress,
+  onFilesSelect,
   onAnalyze,
   onForceAnalyze,
   onHistorySelect,
@@ -48,7 +49,7 @@ export default function Sidebar({
   onPropertyCreate,
   onSignOut,
 }: SidebarProps) {
-  const [selectedFileName, setSelectedFileName] = useState('');
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showNewProperty, setShowNewProperty] = useState(false);
   const [newPropName, setNewPropName] = useState('');
@@ -56,22 +57,26 @@ export default function Sidebar({
   const [creatingProp, setCreatingProp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = useCallback((file: File) => {
-    setSelectedFileName(file.name);
-    onFileSelect(file);
-  }, [onFileSelect]);
+  const handleFiles = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+    if (arr.length === 0) return;
+    setQueuedFiles(arr);
+    onFilesSelect(arr);
+  }, [onFilesSelect]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      handleFiles(e.target.files);
+    }
+    // Reset so same file can be re-selected
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
-      handleFile(file);
+    if (e.dataTransfer.files.length > 0) {
+      handleFiles(e.dataTransfer.files);
     }
   };
 
@@ -87,6 +92,14 @@ export default function Sidebar({
       setCreatingProp(false);
     }
   }
+
+  const hasFiles = queuedFiles.length > 0;
+  const canAnalyze = hasFiles && !isAnalyzing;
+
+  // Progress label shown during analysis
+  const progressLabel = analyzeProgress
+    ? `Analyzing ${analyzeProgress.current} of ${analyzeProgress.total}…`
+    : 'Analyzing…';
 
   return (
     <div
@@ -107,6 +120,7 @@ export default function Sidebar({
             Upload Statement
           </p>
 
+          {/* Drop zone — always interactive */}
           <div
             onClick={() => fileInputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
@@ -114,43 +128,82 @@ export default function Sidebar({
             onDrop={handleDrop}
             className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed cursor-pointer transition-colors"
             style={{
-              borderColor: isDragOver ? 'var(--accent)' : 'var(--border)',
-              backgroundColor: isDragOver ? 'rgba(59,130,246,0.05)' : 'transparent',
+              borderColor: isDragOver ? 'var(--accent)' : hasFiles ? 'rgba(59,130,246,0.4)' : 'var(--border)',
+              backgroundColor: isDragOver
+                ? 'rgba(59,130,246,0.05)'
+                : hasFiles
+                  ? 'rgba(59,130,246,0.04)'
+                  : 'transparent',
             }}
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--muted)' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+              style={{ color: hasFiles ? 'var(--accent)' : 'var(--muted)' }}>
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="12" y1="18" x2="12" y2="12" />
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
-            <p className="text-xs mt-2 text-center" style={{ color: 'var(--muted)' }}>
-              {selectedFileName || 'Drop Excel file or click to browse'}
-            </p>
-            {selectedFileName && (
-              <p className="text-xs mt-1 font-medium truncate max-w-full" style={{ color: 'var(--accent)' }}>
-                {selectedFileName}
+
+            {hasFiles ? (
+              <>
+                {queuedFiles.length === 1 ? (
+                  <p className="text-xs mt-2 font-medium truncate max-w-full text-center" style={{ color: 'var(--accent)' }}>
+                    {queuedFiles[0].name}
+                  </p>
+                ) : (
+                  <p className="text-xs mt-2 font-medium text-center" style={{ color: 'var(--accent)' }}>
+                    {queuedFiles.length} files queued
+                  </p>
+                )}
+                <p className="text-xs mt-1 text-center" style={{ color: 'var(--muted)' }}>
+                  Drop or click to replace
+                </p>
+              </>
+            ) : (
+              <p className="text-xs mt-2 text-center" style={{ color: 'var(--muted)' }}>
+                Drop Excel file(s) or click to browse
               </p>
             )}
           </div>
+
+          {/* Multi-file queue list */}
+          {queuedFiles.length > 1 && (
+            <div className="mt-2 space-y-0.5">
+              {queuedFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+                  style={{ backgroundColor: 'var(--bg)', color: 'var(--muted)' }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <span className="truncate">{f.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <input
             ref={fileInputRef}
             type="file"
             accept=".xlsx,.xls"
+            multiple
             className="hidden"
             onChange={handleInputChange}
           />
 
           <button
             onClick={onAnalyze}
-            disabled={!selectedFileName || isAnalyzing}
+            disabled={!canAnalyze}
             className="btn-primary w-full mt-3"
           >
-            {isAnalyzing ? 'Analyzing...' : 'Analyze'}
+            {isAnalyzing
+              ? progressLabel
+              : queuedFiles.length > 1
+                ? `Analyze ${queuedFiles.length} Files`
+                : 'Analyze'}
           </button>
 
-          {(selectedFileName || hasAnalysis) && !isAnalyzing && (
+          {(hasFiles || hasAnalysis) && !isAnalyzing && (
             <button
               onClick={onForceAnalyze}
               className="w-full mt-1.5 text-xs py-1.5 px-3 rounded-md border transition-colors hover:opacity-80 flex items-center justify-center gap-1.5"
@@ -214,7 +267,7 @@ export default function Sidebar({
                   disabled={!newPropName.trim() || creatingProp}
                   className="flex-1 btn-primary text-xs py-1.5"
                 >
-                  {creatingProp ? 'Creating...' : 'Create'}
+                  {creatingProp ? 'Creating…' : 'Create'}
                 </button>
                 <button
                   onClick={() => { setShowNewProperty(false); setNewPropName(''); setNewPropAddress(''); }}
@@ -242,7 +295,8 @@ export default function Sidebar({
                   }}
                 >
                   <div className="flex items-center gap-1.5">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                      style={{ color: 'var(--accent)', flexShrink: 0 }}>
                       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                       <polyline points="9 22 9 12 15 12 15 22" />
                     </svg>

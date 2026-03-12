@@ -22,6 +22,7 @@ interface PropertyViewProps {
   onAddStatements: (statements: Array<{ fileHash: string; yearLabel: string }>) => Promise<void>;
   onAnalyzeFile: (file: File) => Promise<AnalysisResult>;
   onRemoveStatement: (stmtId: string) => Promise<void>;
+  onRenameStatement: (stmtId: string, newLabel: string) => Promise<void>;
   onDeleteProperty: () => void;
 }
 
@@ -51,11 +52,14 @@ export default function PropertyView({
   onAddStatements,
   onAnalyzeFile,
   onRemoveStatement,
+  onRenameStatement,
   onDeleteProperty,
 }: PropertyViewProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingStmtId, setEditingStmtId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState('');
 
   // Add modal state
   const [modalTab, setModalTab] = useState<'history' | 'upload'>('history');
@@ -170,21 +174,65 @@ export default function PropertyView({
         {!isEmpty && (
           <div className="flex flex-wrap gap-1.5 mt-3">
             {property.statements.map(stmt => (
-              <div
-                key={stmt.id}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs"
-                style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: 'var(--accent)' }}
-              >
-                <span>{stmt.yearLabel || stmt.period}</span>
-                <button
-                  onClick={() => onRemoveStatement(stmt.id)}
-                  className="ml-0.5 hover:opacity-70 transition-opacity"
-                  title="Remove"
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+              <div key={stmt.id} className="group flex items-center">
+                {editingStmtId === stmt.id ? (
+                  <form
+                    onSubmit={async e => {
+                      e.preventDefault();
+                      const label = editingLabel.trim();
+                      if (label) await onRenameStatement(stmt.id, label);
+                      setEditingStmtId(null);
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.15)', border: '1px solid var(--accent)' }}
+                  >
+                    <input
+                      autoFocus
+                      value={editingLabel}
+                      onChange={e => setEditingLabel(e.target.value)}
+                      onBlur={async () => {
+                        const label = editingLabel.trim();
+                        if (label && label !== (stmt.yearLabel || stmt.period)) await onRenameStatement(stmt.id, label);
+                        setEditingStmtId(null);
+                      }}
+                      className="w-20 bg-transparent outline-none text-xs"
+                      style={{ color: 'var(--accent)' }}
+                    />
+                    <button type="submit" className="hover:opacity-70" style={{ color: 'var(--accent)' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </button>
+                  </form>
+                ) : (
+                  <div
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: 'var(--accent)' }}
+                  >
+                    <span>{stmt.yearLabel || stmt.period}</span>
+                    {/* Pencil edit */}
+                    <button
+                      onClick={() => { setEditingStmtId(stmt.id); setEditingLabel(stmt.yearLabel || stmt.period); }}
+                      className="ml-0.5 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                      title="Rename"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    {/* Remove */}
+                    <button
+                      onClick={() => onRemoveStatement(stmt.id)}
+                      className="ml-0.5 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                      title="Remove"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
             <button
@@ -317,10 +365,17 @@ export default function PropertyView({
               {modalTab === 'history' ? (
                 <>
                   {availableHistory.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                        No available statements in history. Analyze a spreadsheet first, or switch to Upload.
-                      </p>
+                    <div className="text-center py-8 space-y-2">
+                      {history.length === 0 ? (
+                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                          No statements in history. Analyze a spreadsheet first, or switch to Upload.
+                        </p>
+                      ) : (
+                        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                          All statements in your history have already been added to this property.
+                          To add a new statement, switch to the Upload tab.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-1">
