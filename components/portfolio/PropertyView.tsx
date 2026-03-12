@@ -23,6 +23,7 @@ interface PropertyViewProps {
   onAnalyzeFile: (file: File) => Promise<AnalysisResult>;
   onRemoveStatement: (stmtId: string) => Promise<void>;
   onRenameStatement: (stmtId: string, newLabel: string) => Promise<void>;
+  onRenameProperty: (newName: string) => Promise<void>;
   onDeleteProperty: () => void;
 }
 
@@ -53,6 +54,7 @@ export default function PropertyView({
   onAnalyzeFile,
   onRemoveStatement,
   onRenameStatement,
+  onRenameProperty,
   onDeleteProperty,
 }: PropertyViewProps) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -60,6 +62,8 @@ export default function PropertyView({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingStmtId, setEditingStmtId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
+  const [editingPropertyName, setEditingPropertyName] = useState(false);
+  const [propertyNameDraft, setPropertyNameDraft] = useState('');
 
   // Add modal state
   const [modalTab, setModalTab] = useState<'history' | 'upload'>('history');
@@ -68,6 +72,7 @@ export default function PropertyView({
   const [addError, setAddError] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const linkedHashes = new Set(property.statements.map(s => s.fileHash));
@@ -121,26 +126,29 @@ export default function PropertyView({
     }
   }
 
-  async function handleFileUpload(file: File) {
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      setAddError('Please upload an Excel file (.xlsx or .xls)');
+  async function handleFilesUpload(files: File[]) {
+    const valid = files.filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.xls'));
+    if (valid.length === 0) {
+      setAddError('Please upload Excel files (.xlsx or .xls)');
       return;
     }
-    setUploadStatus(`Analyzing ${file.name}...`);
     setAddError('');
-    try {
-      const result = await onAnalyzeFile(file);
-      // Auto-add to the property immediately
-      await onAddStatements([{
-        fileHash: result.fileHash,
-        yearLabel: result.statement.period || '',
-      }]);
-      setUploadStatus('');
-      closeModal();
-    } catch (err) {
-      setUploadStatus('');
-      setAddError(err instanceof Error ? err.message : 'Failed to analyze file');
+    for (let i = 0; i < valid.length; i++) {
+      setUploadProgress({ current: i + 1, total: valid.length });
+      setUploadStatus(valid.length > 1 ? `Analyzing file ${i + 1} of ${valid.length}…` : `Analyzing ${valid[i].name}…`);
+      try {
+        const result = await onAnalyzeFile(valid[i]);
+        await onAddStatements([{ fileHash: result.fileHash, yearLabel: result.statement.period || '' }]);
+      } catch (err) {
+        setUploadStatus('');
+        setUploadProgress(null);
+        setAddError(err instanceof Error ? err.message : 'Failed to analyze file');
+        return;
+      }
     }
+    setUploadStatus('');
+    setUploadProgress(null);
+    closeModal();
   }
 
   const isEmpty = property.statements.length === 0;
@@ -154,9 +162,52 @@ export default function PropertyView({
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-lg truncate" style={{ color: 'var(--text)' }}>
-              {property.name}
-            </h2>
+            {editingPropertyName ? (
+              <form
+                onSubmit={async e => {
+                  e.preventDefault();
+                  const name = propertyNameDraft.trim();
+                  if (name && name !== property.name) await onRenameProperty(name);
+                  setEditingPropertyName(false);
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  autoFocus
+                  value={propertyNameDraft}
+                  onChange={e => setPropertyNameDraft(e.target.value)}
+                  onBlur={async () => {
+                    const name = propertyNameDraft.trim();
+                    if (name && name !== property.name) await onRenameProperty(name);
+                    setEditingPropertyName(false);
+                  }}
+                  className="input-field font-semibold text-lg w-full"
+                  style={{ color: 'var(--text)', backgroundColor: 'var(--bg)', borderColor: 'var(--accent)' }}
+                />
+                <button type="submit" className="flex-shrink-0 p-1 hover:opacity-70" style={{ color: 'var(--accent)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2 group/title">
+                <h2 className="font-semibold text-lg truncate" style={{ color: 'var(--text)' }}>
+                  {property.name}
+                </h2>
+                <button
+                  onClick={() => { setEditingPropertyName(true); setPropertyNameDraft(property.name); }}
+                  className="flex-shrink-0 opacity-0 group-hover/title:opacity-50 hover:opacity-100 transition-opacity"
+                  title="Rename property"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              </div>
+            )}
             {property.address && (
               <p className="text-sm" style={{ color: 'var(--muted)' }}>{property.address}</p>
             )}
@@ -164,7 +215,7 @@ export default function PropertyView({
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="flex-shrink-0 text-xs px-3 py-1.5 rounded-md border transition-colors hover:opacity-80"
-            style={{ borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}
+            style={{ borderColor: 'rgba(var(--danger-rgb, 239,68,68),0.3)', color: 'var(--danger)' }}
           >
             Delete Property
           </button>
@@ -267,7 +318,7 @@ export default function PropertyView({
             >
               {tab.label}
               {tab.id === 'flags' && highFlagCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full" style={{ backgroundColor: '#ef4444', color: 'white' }}>
+                <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full" style={{ backgroundColor: 'var(--danger)', color: 'white' }}>
                   {highFlagCount}
                 </span>
               )}
@@ -448,10 +499,10 @@ export default function PropertyView({
                     onDrop={e => {
                       e.preventDefault();
                       setIsDragOver(false);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleFileUpload(file);
+                      const files = Array.from(e.dataTransfer.files);
+                      if (files.length > 0) handleFilesUpload(files);
                     }}
-                    className="flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed transition-colors cursor-pointer"
+                    className="flex flex-col items-center justify-center p-8 rounded-xl border-2 border-dashed transition-colors"
                     style={{
                       borderColor: isDragOver ? 'var(--accent)' : 'var(--border)',
                       backgroundColor: isDragOver ? 'rgba(59,130,246,0.05)' : 'transparent',
@@ -462,6 +513,11 @@ export default function PropertyView({
                       <>
                         <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin mb-3" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
                         <p className="text-sm" style={{ color: 'var(--muted)' }}>{uploadStatus}</p>
+                        {uploadProgress && uploadProgress.total > 1 && (
+                          <p className="text-xs mt-1" style={{ color: 'var(--muted)', opacity: 0.7 }}>
+                            {uploadProgress.current} of {uploadProgress.total} files
+                          </p>
+                        )}
                       </>
                     ) : (
                       <>
@@ -471,8 +527,8 @@ export default function PropertyView({
                           <line x1="12" y1="18" x2="12" y2="12" />
                           <line x1="9" y1="15" x2="15" y2="15" />
                         </svg>
-                        <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Drop Excel file here</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>or click to browse (.xlsx, .xls)</p>
+                        <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Drop Excel file(s) here</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>or click to browse — supports multiple files</p>
                       </>
                     )}
                   </div>
@@ -480,8 +536,9 @@ export default function PropertyView({
                     ref={fileInputRef}
                     type="file"
                     accept=".xlsx,.xls"
+                    multiple
                     className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+                    onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length > 0) handleFilesUpload(files); }}
                   />
                 </div>
               )}
@@ -489,7 +546,7 @@ export default function PropertyView({
 
             {/* Modal footer */}
             {addError && (
-              <p className="px-4 pb-2 text-xs" style={{ color: '#ef4444' }}>{addError}</p>
+              <p className="px-4 pb-2 text-xs" style={{ color: 'var(--danger)' }}>{addError}</p>
             )}
             {modalTab === 'history' && (
               <div className="flex items-center justify-between p-4 border-t" style={{ borderColor: 'var(--border)' }}>
@@ -522,9 +579,11 @@ export default function PropertyView({
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text)' }}>Delete Property?</h3>
+            <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text)' }}>Permanently Delete Property?</h3>
             <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-              This will delete <strong>{property.name}</strong> and all its statement links. The underlying analyses will not be deleted.
+              This will <strong>permanently delete</strong> <strong>{property.name}</strong>
+              {property.statements.length > 0 && ` and its ${property.statements.length} statement link${property.statements.length !== 1 ? 's' : ''}`}.
+              Your underlying analysis data will remain in History. <strong>This cannot be undone.</strong>
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -537,7 +596,7 @@ export default function PropertyView({
               <button
                 onClick={() => { setShowDeleteConfirm(false); onDeleteProperty(); }}
                 className="px-4 py-2 text-sm rounded-md transition-colors hover:opacity-80"
-                style={{ backgroundColor: '#ef4444', color: 'white' }}
+                style={{ backgroundColor: 'var(--danger)', color: 'white' }}
               >
                 Delete
               </button>

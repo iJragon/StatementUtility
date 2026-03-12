@@ -140,8 +140,9 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await request.json() as { portfolioSummary?: string };
+  const body = await request.json() as { portfolioSummary?: string; name?: string };
   const updates: Record<string, unknown> = {};
+  if (body.name !== undefined) updates.name = body.name;
   if (body.portfolioSummary !== undefined) {
     updates.portfolio_summary = body.portfolioSummary;
     updates.portfolio_analyzed_at = new Date().toISOString();

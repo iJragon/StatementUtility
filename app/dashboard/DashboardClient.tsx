@@ -8,10 +8,9 @@ import { detectCrossYearAnomalies, buildPortfolioKeyMetrics } from '@/lib/agents
 import type { AnalysisResult } from '@/lib/models/statement';
 import type { ChatMessage } from '@/lib/agents/chat-agent';
 import type { ChartSpec } from '@/lib/agents/viz-agent';
-import type { PropertyEntry, PropertyDetail, CrossYearFlag, PortfolioKeyMetric } from '@/lib/models/portfolio';
+import type { PropertyEntry, PropertyDetail, PropertyStatement, CrossYearFlag, PortfolioKeyMetric } from '@/lib/models/portfolio';
 import type { HistoryEntry } from './page';
 import Sidebar from '@/components/dashboard/Sidebar';
-import ThemeToggle from '@/components/ThemeToggle';
 import SummaryTab from '@/components/dashboard/tabs/SummaryTab';
 import RevenueTab from '@/components/dashboard/tabs/RevenueTab';
 import ExpensesTab from '@/components/dashboard/tabs/ExpensesTab';
@@ -566,15 +565,27 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       const err = await res.json().catch(() => ({ error: 'Failed to add statement' }));
       throw new Error(err.error || 'Failed to add statement');
     }
-    const { added } = await res.json() as { added: unknown[]; errors: string[] };
-    // Reload property to get fresh data
-    await handlePropertySelect({ id: propertyDetail.id, name: propertyDetail.name, address: propertyDetail.address, createdAt: propertyDetail.createdAt, statementCount: 0 });
+    const { added } = await res.json() as {
+      added: Array<{ stmt: PropertyStatement; analysis: AnalysisResult }>;
+      errors: string[];
+    };
+    if (added.length === 0) return;
+
+    const newStmts = added.map(a => a.stmt);
+    const newAnalyses = added.map(a => a.analysis);
+    const updatedStmts = [...propertyDetail.statements, ...newStmts];
+    const updatedAnalyses = [...propertyAnalyses, ...newAnalyses];
+
+    setPropertyDetail(prev => prev ? { ...prev, statements: updatedStmts } : prev);
+    setPropertyAnalyses(updatedAnalyses);
     setProperties(prev => prev.map(p =>
       p.id === propertyDetail.id ? { ...p, statementCount: p.statementCount + added.length } : p,
     ));
+    setPortfolioCrossYearFlags(detectCrossYearAnomalies(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+    setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
   }
 
-  // Analyze a file (for adding directly from the add-statement modal)
+  // Analyze a file for a property context — does NOT add to history
   async function handleAnalyzeFileForProperty(file: File): Promise<AnalysisResult> {
     const formData = new FormData();
     formData.append('file', file);
@@ -583,27 +594,37 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       const err = await res.json().catch(() => ({ error: 'Analysis failed' }));
       throw new Error(err.error || 'Analysis failed');
     }
-    const result: AnalysisResult = await res.json();
-    // Add to history list if not already there
-    setHistory(prev => {
-      if (prev.find(h => h.fileHash === result.fileHash)) return prev;
-      return [{
-        id: result.fileHash,
-        fileHash: result.fileHash,
-        fileName: result.fileName,
-        propertyName: result.statement.propertyName,
-        period: result.statement.period,
-        analyzedAt: result.analyzedAt,
-      }, ...prev].slice(0, 20);
-    });
-    return result;
+    return res.json();
   }
 
   async function handleRemoveStatement(stmtId: string) {
     if (!propertyDetail) return;
     await fetch(`/api/properties/${propertyDetail.id}/statements/${stmtId}`, { method: 'DELETE' });
-    await handlePropertySelect({ id: propertyDetail.id, name: propertyDetail.name, address: propertyDetail.address, createdAt: propertyDetail.createdAt, statementCount: 0 });
-    setProperties(prev => prev.map(p => p.id === propertyDetail.id ? { ...p, statementCount: Math.max(0, p.statementCount - 1) } : p));
+
+    const removedStmt = propertyDetail.statements.find(s => s.id === stmtId);
+    const updatedStmts = propertyDetail.statements.filter(s => s.id !== stmtId);
+    const updatedAnalyses = removedStmt
+      ? propertyAnalyses.filter(a => a.fileHash !== removedStmt.fileHash)
+      : propertyAnalyses;
+
+    setPropertyDetail(prev => prev ? { ...prev, statements: updatedStmts } : prev);
+    setPropertyAnalyses(updatedAnalyses);
+    setProperties(prev => prev.map(p =>
+      p.id === propertyDetail.id ? { ...p, statementCount: Math.max(0, p.statementCount - 1) } : p,
+    ));
+    setPortfolioCrossYearFlags(detectCrossYearAnomalies(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+    setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+  }
+
+  async function handlePropertyRename(newName: string) {
+    if (!propertyDetail) return;
+    await fetch(`/api/properties/${propertyDetail.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    setPropertyDetail(prev => prev ? { ...prev, name: newName } : prev);
+    setProperties(prev => prev.map(p => p.id === propertyDetail.id ? { ...p, name: newName } : p));
   }
 
   async function handleRenameStatement(stmtId: string, newLabel: string) {
@@ -669,6 +690,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               onAnalyzeFile={handleAnalyzeFileForProperty}
               onRemoveStatement={handleRemoveStatement}
               onRenameStatement={handleRenameStatement}
+              onRenameProperty={handlePropertyRename}
               onDeleteProperty={() => handlePropertyDelete(propertyDetail.id)}
             />
           )
@@ -694,7 +716,6 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                   <p style={{ color: 'var(--muted)' }}>No file analyzed</p>
                 )}
               </div>
-              <ThemeToggle />
             </div>
 
             {/* Tabs */}

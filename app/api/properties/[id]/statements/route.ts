@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { AnalysisResult } from '@/lib/models/statement';
+import type { PropertyStatement } from '@/lib/models/portfolio';
 
 // POST /api/properties/[id]/statements — add one or more statements to a property
+// Returns full analysis data for each added statement so the client can update
+// incrementally without reloading the entire property (O(K) vs O(N)).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -11,7 +15,6 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Verify property belongs to user
   const { data: prop } = await supabase
     .from('properties')
     .select('id')
@@ -26,13 +29,17 @@ export async function POST(
 
   const items = 'statements' in body ? body.statements : [body];
   const errors: string[] = [];
-  const added: unknown[] = [];
+
+  interface AddedStatement {
+    stmt: PropertyStatement;
+    analysis: AnalysisResult;
+  }
+  const added: AddedStatement[] = [];
 
   for (const item of items) {
-    // Look up by file_hash (works for both fresh analyses and history-loaded entries)
     const { data: analysis } = await supabase
       .from('analyses')
-      .select('id, period')
+      .select('id, file_hash, file_name, property_name, period, statement_data, ratios_data, anomalies_data, trends_data, analyzed_at')
       .eq('file_hash', item.fileHash)
       .eq('user_id', user.id)
       .single();
@@ -42,7 +49,7 @@ export async function POST(
       continue;
     }
 
-    const { data, error } = await supabase
+    const { data: linkData, error } = await supabase
       .from('property_statements')
       .insert({
         property_id: propertyId,
@@ -53,13 +60,29 @@ export async function POST(
       .single();
 
     if (error) {
-      if (error.code === '23505') {
-        errors.push('Already linked');
-      } else {
-        errors.push(error.message);
-      }
+      errors.push(error.code === '23505' ? 'Already linked' : error.message);
     } else {
-      added.push(data);
+      added.push({
+        stmt: {
+          id: linkData.id,
+          analysisId: analysis.id,
+          fileHash: analysis.file_hash,
+          fileName: analysis.file_name,
+          propertyName: analysis.property_name ?? '',
+          period: analysis.period ?? '',
+          yearLabel: linkData.year_label || analysis.period || '',
+          addedAt: linkData.added_at,
+        },
+        analysis: {
+          statement: analysis.statement_data,
+          ratios: analysis.ratios_data,
+          anomalies: analysis.anomalies_data,
+          trends: analysis.trends_data,
+          fileName: analysis.file_name,
+          fileHash: analysis.file_hash,
+          analyzedAt: analysis.analyzed_at,
+        },
+      });
     }
   }
 

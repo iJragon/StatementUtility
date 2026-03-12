@@ -76,7 +76,7 @@ export default function OverviewTab({
           <p className="text-xs" style={{ color: 'var(--muted)' }}>Latest OER</p>
           <p
             className="text-2xl font-bold mt-1"
-            style={{ color: latestOer !== null && latestOer > 65 ? '#ef4444' : 'var(--text)' }}
+            style={{ color: latestOer !== null && latestOer > 65 ? 'var(--danger)' : 'var(--text)' }}
           >
             {latestOer !== null ? `${latestOer.toFixed(1)}%` : 'N/A'}
           </p>
