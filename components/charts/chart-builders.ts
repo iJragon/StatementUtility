@@ -30,7 +30,7 @@ function fmt(val: number | null | undefined): string {
 function getMonthlyValues(statement: FinancialStatement, key: string): Array<number | null> {
   const row = statement.keyFigures[key];
   if (!row) return statement.months.map(() => null);
-  return statement.months.map(m => row.montlyValues[m] ?? null);
+  return statement.months.map(m => row.monthlyValues[m] ?? null);
 }
 
 // 1. Revenue vs OpEx vs NOI line chart
@@ -373,14 +373,14 @@ export function expenseHeatmap(statement: FinancialStatement) {
 
   const rows = EXPENSE_KEYS
     .map(({ key, label }) => ({ label, row: statement.keyFigures[key] }))
-    .filter(({ row }) => row !== undefined && months.some(m => (row!.montlyValues[m] ?? null) !== null));
+    .filter(({ row }) => row !== undefined && months.some(m => (row!.monthlyValues[m] ?? null) !== null));
 
   if (rows.length === 0) return { data: [], layout: {} };
 
   // Raw dollar values per row (for hover text)
   const rawZ = rows.map(({ row }) =>
     months.map(m => {
-      const v = row!.montlyValues[m];
+      const v = row!.monthlyValues[m];
       return v !== null ? Math.abs(v) : null;
     })
   );
@@ -551,7 +551,7 @@ export function buildFromSpec(
   const data: Plotly.Data[] = spec.traces.map((trace, i) => {
     const row = statement.keyFigures[trace.dataRef]
       ?? statement.allRows.find(r => r.label === trace.dataRef);
-    const y = row ? months.map(m => row.montlyValues[m] ?? null) : months.map(() => null);
+    const y = row ? months.map(m => row.monthlyValues[m] ?? null) : months.map(() => null);
     const traceType = (trace.chartType || spec.chartType) as string;
     const c = palette[i % palette.length];
 

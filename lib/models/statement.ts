@@ -1,6 +1,6 @@
 export interface LineItem {
   label: string;
-  montlyValues: Record<string, number | null>; // month label -> value
+  monthlyValues: Record<string, number | null>; // month label -> value
   annualTotal: number | null;
   rowNumber: number;
   accountCode?: string;

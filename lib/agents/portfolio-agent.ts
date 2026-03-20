@@ -194,10 +194,6 @@ export function buildPortfolioKeyMetrics(
   analyses: AnalysisResult[],
   yearLabels: string[],
 ): PortfolioKeyMetric[] {
-  // Pad yearLabels if short
-  const labels = analyses.map((a, i) => yearLabels[i] || a.statement.period);
-  void labels; // used by callers for period headers
-
   function kfValues(key: string): (number | null)[] {
     return analyses.map(a => a.statement.keyFigures[key]?.annualTotal ?? null);
   }

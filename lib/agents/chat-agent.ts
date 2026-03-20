@@ -60,7 +60,7 @@ function buildGroundingBlock(
       if (!row) continue;
       lines.push(`${row.label}:`);
       for (const month of statement.months) {
-        const val = row.montlyValues[month];
+        const val = row.monthlyValues[month];
         lines.push(`  ${month}: ${val !== null ? '$' + val.toFixed(0) : 'N/A'}`);
       }
     }

@@ -11,6 +11,12 @@ function isRateLimitError(err: unknown): boolean {
   return err.message.toLowerCase().includes('rate limit') || err.message.includes('429');
 }
 
+// Daily token cap (TPD) cannot be resolved by retrying — fail immediately
+function isDailyTokenCap(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return err.message.includes('tokens per day') || err.message.includes('TPD');
+}
+
 async function callWithRetry(
   client: Groq,
   prompt: string,
@@ -26,7 +32,7 @@ async function callWithRetry(
       });
       return response.choices[0]?.message?.content ?? '';
     } catch (err) {
-      if (!isRateLimitError(err) || attempt === maxRetries) throw err;
+      if (!isRateLimitError(err) || isDailyTokenCap(err) || attempt === maxRetries) throw err;
       const delay = Math.pow(2, attempt) * 1000; // 1 s, 2 s, 4 s, 8 s
       console.warn(`[ai-extractor] Rate limited — retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
       await new Promise(r => setTimeout(r, delay));
@@ -53,19 +59,18 @@ export async function extractKeyFiguresWithAI(
 
   const client = new Groq({ apiKey });
 
-  // Build a numbered row list: index, label, type flags, and annual total.
-  // We omit monthly columns here to keep the prompt concise — the AI only needs
-  // to identify WHICH row corresponds to each concept; monthly values are already
-  // in allRows and will be looked up by index after the AI responds.
+  // Build a numbered row list for the AI. Only rows with a numeric annual total
+  // are included — pure section-header rows (no dollar values) are noise.
+  // Original row indices are preserved so the AI's returned row numbers map
+  // back correctly to allRows. Capped at 200 rows to limit token usage.
   const rowList = allRows
-    .slice(0, 400)
-    .map((row, i) => {
-      let total = '(no total)';
-      if (row.annualTotal !== null) {
-        const sign = row.annualTotal < 0 ? '-' : '+';
-        total = `${sign}$${Math.abs(row.annualTotal).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-      }
-      const tag = row.isHeader ? ' [section header]' : row.isSubtotal ? ' [subtotal]' : '';
+    .map((row, i) => ({ row, i }))
+    .filter(({ row }) => row.annualTotal !== null)
+    .slice(0, 200)
+    .map(({ row, i }) => {
+      const sign = row.annualTotal! < 0 ? '-' : '+';
+      const total = `${sign}$${Math.abs(row.annualTotal!).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+      const tag = row.isSubtotal ? ' [subtotal]' : '';
       return `${i + 1}. "${row.label}"${tag}  |  ${total}`;
     })
     .join('\n');

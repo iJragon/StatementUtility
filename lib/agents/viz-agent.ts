@@ -34,7 +34,7 @@ export class VizAgent {
     // Build available data refs
     const availableKeys = KEY_FIGURE_LIST.filter(k => statement.keyFigures[k]);
     const availableRows = statement.allRows
-      .filter(r => !r.isHeader && Object.values(r.montlyValues).some(v => v !== null))
+      .filter(r => !r.isHeader && Object.values(r.monthlyValues).some(v => v !== null))
       .map(r => r.label)
       .slice(0, 50);
 

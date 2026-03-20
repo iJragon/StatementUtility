@@ -88,7 +88,7 @@ export function analyzeTrends(statement: FinancialStatement): TrendReport {
 
     const values: Record<string, number | null> = {};
     for (const month of months) {
-      values[month] = row.montlyValues[month] ?? null;
+      values[month] = row.monthlyValues[month] ?? null;
     }
 
     // MoM changes

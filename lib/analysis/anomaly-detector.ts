@@ -1,14 +1,5 @@
 import type { FinancialStatement, Anomaly } from '../models/statement';
-
-function colIndexToLetter(colIndex: number): string {
-  let result = '';
-  let col = colIndex;
-  while (col >= 0) {
-    result = String.fromCharCode(65 + (col % 26)) + result;
-    col = Math.floor(col / 26) - 1;
-  }
-  return result;
-}
+import { colIndexToLetter } from '../parser/excel-parser';
 
 function cellRef(colIndex: number, rowNumber: number): string {
   return `${colIndexToLetter(colIndex)}${rowNumber}`;
@@ -40,11 +31,11 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
 
   // ── 1. Missing data — only flag key figure rows ──────────────────────────
   for (const [key, row] of Object.entries(keyFigures)) {
-    const vals = months.map(m => row.montlyValues[m]);
+    const vals = months.map(m => row.monthlyValues[m]);
     const nullCount = vals.filter(v => v === null).length;
     if (nullCount === 0) continue;
 
-    const missingMonths = months.filter(m => row.montlyValues[m] === null);
+    const missingMonths = months.filter(m => row.monthlyValues[m] === null);
     const isCritical = CRITICAL_KEYS.has(key);
 
     if (nullCount === vals.length) {
@@ -74,7 +65,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
 
   // ── 2. Sign changes — key figure rows only, minimum magnitude $500 ───────
   for (const row of Object.values(keyFigures)) {
-    const vals = months.map(m => row.montlyValues[m]).filter((v): v is number => v !== null);
+    const vals = months.map(m => row.monthlyValues[m]).filter((v): v is number => v !== null);
     if (vals.length < 3) continue;
 
     const positiveCount = vals.filter(v => v > 0).length;
@@ -85,10 +76,10 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     if (maxAbsVal < 500) continue;
 
     const signChanges: string[] = [];
-    const nonNullMonths = months.filter(m => row.montlyValues[m] !== null);
+    const nonNullMonths = months.filter(m => row.monthlyValues[m] !== null);
     for (let i = 1; i < nonNullMonths.length; i++) {
-      const prev = row.montlyValues[nonNullMonths[i - 1]]!;
-      const curr = row.montlyValues[nonNullMonths[i]]!;
+      const prev = row.monthlyValues[nonNullMonths[i - 1]]!;
+      const curr = row.monthlyValues[nonNullMonths[i]]!;
       if ((prev > 0 && curr < 0) || (prev < 0 && curr > 0)) {
         signChanges.push(`${nonNullMonths[i - 1]} to ${nonNullMonths[i]}`);
       }
@@ -112,7 +103,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
   // ── 3. Statistical outliers — one anomaly per key figure row ─────────────
   for (const row of Object.values(keyFigures)) {
     if (row.isHeader || row.isSubtotal) continue;
-    const vals = months.map(m => row.montlyValues[m]).filter((v): v is number => v !== null);
+    const vals = months.map(m => row.monthlyValues[m]).filter((v): v is number => v !== null);
     if (vals.length < 6) continue;
 
     const avg = mean(vals);
@@ -121,7 +112,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
 
     const outlierMonths: Array<{ month: string; val: number; zScore: number }> = [];
     for (const month of months) {
-      const val = row.montlyValues[month];
+      const val = row.monthlyValues[month];
       if (val === null) continue;
       const zScore = Math.abs((val - avg) / std);
       if (zScore > 3.0 && Math.abs(val - avg) > 1000) {
@@ -226,12 +217,12 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
 
   // ── 8. Consecutive revenue decline (3+ months) ───────────────────────────
   if (revRow) {
-    const nonNullMonths = months.filter(m => revRow.montlyValues[m] !== null);
+    const nonNullMonths = months.filter(m => revRow.monthlyValues[m] !== null);
     let streak = 0;
     let streakStart = '';
     for (let i = 1; i < nonNullMonths.length; i++) {
-      const prev = revRow.montlyValues[nonNullMonths[i - 1]]!;
-      const curr = revRow.montlyValues[nonNullMonths[i]]!;
+      const prev = revRow.monthlyValues[nonNullMonths[i - 1]]!;
+      const curr = revRow.monthlyValues[nonNullMonths[i]]!;
       if (curr < prev) {
         if (streak === 0) streakStart = nonNullMonths[i - 1];
         streak++;

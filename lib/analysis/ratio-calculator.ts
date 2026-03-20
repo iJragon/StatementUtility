@@ -9,7 +9,7 @@ function getAnnual(statement: FinancialStatement, key: string): number | null {
 function getMonthly(statement: FinancialStatement, key: string): Record<string, number | null> {
   const item = statement.keyFigures[key];
   if (!item) return {};
-  return item.montlyValues;
+  return item.monthlyValues;
 }
 
 function safeDiv(num: number | null, den: number | null): number | null {

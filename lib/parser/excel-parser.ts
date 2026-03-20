@@ -224,7 +224,7 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
     const colValues = Object.values(monthlyValues);
     allRows.push({
       label: rawLabel,
-      montlyValues: monthlyValues,
+      monthlyValues: monthlyValues,
       annualTotal,
       rowNumber: r + 1,
       accountCode,

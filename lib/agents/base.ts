@@ -77,7 +77,7 @@ export function buildFinancialContext(
   const revRow = statement.keyFigures['total_revenue'];
   if (revRow) {
     for (const month of statement.months) {
-      const val = revRow.montlyValues[month];
+      const val = revRow.monthlyValues[month];
       lines.push(`${month}: ${formatDollar(val)}`);
     }
   }
