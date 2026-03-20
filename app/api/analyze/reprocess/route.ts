@@ -5,6 +5,7 @@ import { calculateRatios } from '@/lib/analysis/ratio-calculator';
 import { detectAnomalies } from '@/lib/analysis/anomaly-detector';
 import { analyzeTrends } from '@/lib/analysis/trend-analyzer';
 import type { AnalysisResult, FinancialStatement } from '@/lib/models/statement';
+import { migrateStatement } from '@/lib/models/statement';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Analysis not found' }, { status: 404 });
     }
 
-    const storedStatement: FinancialStatement = existing.statement_data;
+    const storedStatement: FinancialStatement = migrateStatement(existing.statement_data);
 
     // Re-run AI extraction using stored allRows (no original file needed)
     const headerText = storedStatement.propertyName + ' ' + storedStatement.period;
