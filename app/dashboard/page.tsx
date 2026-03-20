@@ -27,7 +27,7 @@ export default async function DashboardPage() {
     .select('id, file_hash, file_name, property_name, period, analyzed_at')
     .eq('user_id', user.id)
     .order('analyzed_at', { ascending: false })
-    .limit(20);
+    .limit(200);
 
   const history: HistoryEntry[] = (analyses ?? []).map((a) => ({
     id: a.id,

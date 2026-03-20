@@ -14,7 +14,7 @@ export async function GET() {
     .select('id, file_name, property_name, period, analyzed_at')
     .eq('user_id', user.id)
     .order('analyzed_at', { ascending: false })
-    .limit(20);
+    .limit(200);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -188,7 +188,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
           period: result.statement.period,
           analyzedAt: result.analyzedAt,
         };
-        return [newEntry, ...prev].slice(0, 20);
+        return [newEntry, ...prev].slice(0, 200);
       });
 
       setSummaryStreaming(true);
@@ -259,7 +259,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
           }, ...updated];
         }
       }
-      return updated.slice(0, 20);
+      return updated.slice(0, 200);
     });
 
     setAnalyzeProgress(null);
@@ -612,7 +612,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         period: result.statement.period,
         analyzedAt: result.analyzedAt,
       };
-      return [newEntry, ...prev].slice(0, 20);
+      return [newEntry, ...prev].slice(0, 200);
     });
     return result;
   }

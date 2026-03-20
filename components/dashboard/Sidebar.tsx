@@ -75,6 +75,7 @@ export default function Sidebar({
   const [editingPropId, setEditingPropId] = useState<string | null>(null);
   const [editingPropField, setEditingPropField] = useState<'name' | 'address' | null>(null);
   const [editingPropValue, setEditingPropValue] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
   // Confirmation modal
   const [confirm, setConfirm] = useState<{ title: string; body: string; action: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -471,37 +472,84 @@ export default function Sidebar({
 
         <div className="border-t mx-4" style={{ borderColor: 'var(--border)' }} />
 
-        {/* History */}
+        {/* Analyses */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-              History
+              Analyses
+              {history.length > 0 && (
+                <span className="ml-1 font-normal normal-case tracking-normal" style={{ opacity: 0.55 }}>
+                  ({history.length})
+                </span>
+              )}
             </p>
             {history.length > 0 && (
               <button
                 onClick={() => setConfirm({
-                  title: 'Clear All History?',
-                  body: `This will permanently remove all ${history.length} analysis entr${history.length !== 1 ? 'ies' : 'y'} from your history. This cannot be undone.`,
+                  title: 'Delete All Analyses?',
+                  body: `Permanently delete all ${history.length} saved analys${history.length !== 1 ? 'es' : 'is'}? This cannot be undone.`,
                   action: onClearHistory,
                 })}
                 className="text-xs hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--muted)' }}
               >
-                Clear all
+                Delete all
               </button>
             )}
           </div>
 
-          {history.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>No analyses yet</p>
-          ) : (
-            <div className="space-y-1">
-              {history.map(entry => (
-                <div key={entry.id} className="group rounded-md" style={{ backgroundColor: 'var(--bg)' }}>
-                  <div className="flex items-center gap-1 px-2 pt-2">
+          {/* Search */}
+          {history.length > 3 && (
+            <div className="relative mb-2">
+              <svg className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--muted)' }}>
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+                placeholder="Search analyses..."
+                className="w-full text-xs pl-6 pr-6 py-1.5 rounded-md border outline-none"
+                style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
+              />
+              {historySearch && (
+                <button
+                  onClick={() => setHistorySearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 hover:opacity-70 transition-opacity"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+
+          {(() => {
+            const q = historySearch.toLowerCase();
+            const filtered = q
+              ? history.filter(e =>
+                  (e.propertyName || '').toLowerCase().includes(q) ||
+                  (e.fileName || '').toLowerCase().includes(q) ||
+                  (e.period || '').toLowerCase().includes(q),
+                )
+              : history;
+
+            if (history.length === 0) {
+              return <p className="text-xs" style={{ color: 'var(--muted)' }}>No analyses yet</p>;
+            }
+            if (filtered.length === 0) {
+              return <p className="text-xs" style={{ color: 'var(--muted)' }}>No results for &ldquo;{historySearch}&rdquo;</p>;
+            }
+
+            return (
+              <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: 280 }}>
+                {filtered.map(entry => (
+                  <div key={entry.id} className="group relative rounded-lg" style={{ backgroundColor: 'var(--bg)' }}>
                     {editingHistoryId === entry.id ? (
                       <form
-                        className="flex-1 flex items-center gap-1 min-w-0"
+                        className="flex items-center gap-1 px-2 py-2"
                         onSubmit={async e => {
                           e.preventDefault();
                           const name = editingHistoryName.trim();
@@ -528,58 +576,57 @@ export default function Sidebar({
                         </button>
                       </form>
                     ) : (
-                      <button
-                        onClick={() => onHistorySelect(entry)}
-                        className="flex-1 text-left text-xs font-medium truncate min-w-0 hover:opacity-70 transition-opacity"
-                        style={{ color: 'var(--text)' }}
-                      >
-                        {entry.propertyName || entry.fileName}{entry.period ? ` (${entry.period})` : ''}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => onHistorySelect(entry)}
+                          className="w-full text-left px-2 py-2 pr-14 rounded-lg transition-colors hover:opacity-80"
+                        >
+                          <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                            {entry.propertyName || entry.fileName}
+                          </p>
+                          <p className="text-xs truncate mt-0.5" style={{ color: 'var(--muted)' }}>
+                            {[entry.period, entry.fileName].filter(Boolean).join(' · ')}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)', opacity: 0.6 }}>
+                            {formatDate(entry.analyzedAt)}
+                          </p>
+                        </button>
+                        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setEditingHistoryId(entry.id); setEditingHistoryName(entry.propertyName || entry.fileName); }}
+                            className="p-1 rounded hover:opacity-70 transition-opacity"
+                            style={{ color: 'var(--muted)' }}
+                            title="Rename"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setConfirm({
+                              title: 'Delete Analysis?',
+                              body: `Permanently delete the analysis for "${entry.propertyName || entry.fileName}"${entry.period ? ` (${entry.period})` : ''}? This cannot be undone.`,
+                              action: () => onHistoryDelete(entry.id),
+                            })}
+                            className="p-1 rounded hover:opacity-70 transition-opacity"
+                            style={{ color: 'var(--muted)' }}
+                            title="Delete"
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                            </svg>
+                          </button>
+                        </div>
+                      </>
                     )}
-                    {editingHistoryId !== entry.id && (
-                      <button
-                        onClick={() => { setEditingHistoryId(entry.id); setEditingHistoryName(entry.propertyName || entry.fileName); }}
-                        className="flex-shrink-0 opacity-0 group-hover:opacity-50 hover:opacity-100 transition-opacity p-0.5"
-                        style={{ color: 'var(--muted)' }}
-                        title="Rename"
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setConfirm({
-                        title: 'Remove from History?',
-                        body: `Remove "${entry.propertyName || entry.fileName}"${entry.period ? ` (${entry.period})` : ''} from your history? This cannot be undone.`,
-                        action: () => onHistoryDelete(entry.id),
-                      })}
-                      className="flex-shrink-0 opacity-0 group-hover:opacity-50 hover:opacity-100 transition-opacity p-0.5"
-                      style={{ color: 'var(--muted)' }}
-                      title="Delete"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
                   </div>
-                  <button
-                    onClick={() => onHistorySelect(entry)}
-                    className="w-full text-left px-2 pb-2 pt-0.5 hover:opacity-70 transition-opacity"
-                  >
-                    <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
-                      {entry.fileName}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--muted)', opacity: 0.7 }}>
-                      {entry.period} &middot; {formatDate(entry.analyzedAt)}
-                    </p>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
