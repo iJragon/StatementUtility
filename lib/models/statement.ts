@@ -98,6 +98,23 @@ export interface TrendReport {
   series: TrendSeries[];
 }
 
+// Migrates cached statement data stored with the old `montlyValues` typo.
+// Safe to call on already-migrated data.
+export function migrateStatement(statement: FinancialStatement): FinancialStatement {
+  const fix = (item: LineItem): LineItem => {
+    if ('montlyValues' in item && !('monthlyValues' in item)) {
+      const { montlyValues, ...rest } = item as LineItem & { montlyValues: Record<string, number | null> };
+      return { ...rest, monthlyValues: montlyValues };
+    }
+    return item;
+  };
+  return {
+    ...statement,
+    allRows: statement.allRows.map(fix),
+    keyFigures: Object.fromEntries(Object.entries(statement.keyFigures).map(([k, v]) => [k, fix(v)])),
+  };
+}
+
 export interface AnalysisResult {
   statement: FinancialStatement;
   ratios: RatioReport;

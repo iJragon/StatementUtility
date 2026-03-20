@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { AnalysisResult } from '@/lib/models/statement';
+import { migrateStatement } from '@/lib/models/statement';
 
 export async function GET(
   _request: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
   }
 
   const result: AnalysisResult = {
-    statement: data.statement_data,
+    statement: migrateStatement(data.statement_data),
     ratios: data.ratios_data,
     anomalies: data.anomalies_data,
     trends: data.trends_data,

@@ -5,6 +5,7 @@ import { calculateRatios } from '@/lib/analysis/ratio-calculator';
 import { detectAnomalies } from '@/lib/analysis/anomaly-detector';
 import { analyzeTrends } from '@/lib/analysis/trend-analyzer';
 import type { AnalysisResult } from '@/lib/models/statement';
+import { migrateStatement } from '@/lib/models/statement';
 import crypto from 'crypto';
 
 export async function PATCH(request: NextRequest) {
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         const result: AnalysisResult = {
-          statement: existing.statement_data,
+          statement: migrateStatement(existing.statement_data),
           ratios: existing.ratios_data,
           anomalies: existing.anomalies_data,
           trends: existing.trends_data,
