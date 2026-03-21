@@ -151,7 +151,12 @@ function StatTile({ label, tooltip, value, sub, status }: {
 
   return (
     <div className="card text-center min-w-0">
-      <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>{labelNode}</p>
+      <p
+        className="text-xs uppercase tracking-widest mb-1 flex items-end justify-center"
+        style={{ color: 'var(--muted)', minHeight: '2.5rem' }}
+      >
+        {labelNode}
+      </p>
       <p
         className="font-bold leading-none"
         style={{
