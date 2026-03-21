@@ -1,7 +1,9 @@
 'use client';
 
+import type React from 'react';
 import { useState, useEffect } from 'react';
 import type { AnalysisResult, PromotedRow } from '@/lib/models/statement';
+import Tooltip from '@/components/Tooltip';
 
 // ── Inputs interface (persisted to localStorage per fileHash) ─────────────────
 
@@ -45,6 +47,7 @@ function safeNum(val: string): number | null {
 
 function fmtDollar(val: number | null): string {
   if (val === null) return 'N/A';
+  if (!isFinite(val) || isNaN(val)) return 'Check inputs';
   const abs = Math.abs(val);
   const sign = val < 0 ? '-' : '';
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
@@ -53,11 +56,15 @@ function fmtDollar(val: number | null): string {
 }
 
 function fmtX(val: number | null, decimals = 2): string {
-  return val === null ? 'N/A' : `${val.toFixed(decimals)}x`;
+  if (val === null) return 'N/A';
+  if (!isFinite(val) || isNaN(val)) return 'Check inputs';
+  return `${val.toFixed(decimals)}x`;
 }
 
 function fmtPct(val: number | null): string {
-  return val === null ? 'N/A' : `${val.toFixed(1)}%`;
+  if (val === null) return 'N/A';
+  if (!isFinite(val) || isNaN(val)) return 'Check inputs';
+  return `${val.toFixed(1)}%`;
 }
 
 function statusFor(metric: string, value: number | null): 'good' | 'warning' | 'bad' | 'unknown' {
@@ -101,7 +108,7 @@ const KEY_FIGURE_LABELS: Record<string, string> = {
 function MetricCard({
   label, value, sub, status,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
   sub?: string;
   status?: 'good' | 'warning' | 'bad' | 'unknown';
@@ -229,18 +236,18 @@ export default function PropertyContextTab({
         </p>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {([
-            { key: 'units'            as const, label: 'Total Units',            placeholder: '120' },
-            { key: 'headcount'        as const, label: 'Total Employees',         placeholder: '8' },
-            { key: 'sqFt'             as const, label: 'Square Footage',          placeholder: '95,000' },
-            { key: 'purchasePrice'    as const, label: 'Purchase Price ($)',       placeholder: '6,500,000' },
-            { key: 'marketValue'      as const, label: 'Market Value ($)',         placeholder: '7,200,000' },
-            { key: 'loanBalance'      as const, label: 'Loan Balance ($)',         placeholder: '4,500,000' },
-            { key: 'interestRate'     as const, label: 'Interest Rate (%)',        placeholder: '5.5' },
-            { key: 'annualDebtService'as const, label: 'Annual Debt Service ($)',  placeholder: '290,000' },
-          ]).map(({ key, label, placeholder }) => (
+            { key: 'units'            as const, label: 'Total Units',            placeholder: '120',       tooltip: 'Total Units' },
+            { key: 'headcount'        as const, label: 'Total Employees',         placeholder: '8',         tooltip: 'Total Employees' },
+            { key: 'sqFt'             as const, label: 'Square Footage',          placeholder: '95000',     tooltip: undefined },
+            { key: 'purchasePrice'    as const, label: 'Purchase Price',          placeholder: '6500000',   tooltip: 'Purchase Price' },
+            { key: 'marketValue'      as const, label: 'Market Value',            placeholder: '7200000',   tooltip: 'Market Value' },
+            { key: 'loanBalance'      as const, label: 'Loan Balance',            placeholder: '4500000',   tooltip: 'Loan Balance' },
+            { key: 'interestRate'     as const, label: 'Interest Rate (%)',       placeholder: '5.5',       tooltip: 'Interest Rate' },
+            { key: 'annualDebtService'as const, label: 'Annual Debt Service',     placeholder: '290000',    tooltip: 'Annual Debt Service' },
+          ]).map(({ key, label, placeholder, tooltip }) => (
             <div key={key}>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>
-                {label}
+                {tooltip ? <Tooltip term={tooltip}>{label}</Tooltip> : label}
               </label>
               <input
                 type="text"
@@ -253,6 +260,9 @@ export default function PropertyContextTab({
             </div>
           ))}
         </div>
+        <p className="text-xs mt-3" style={{ color: 'var(--muted)' }}>
+          Enter dollar amounts as full numbers (e.g. <code className="font-mono">6500000</code> not <code className="font-mono">6.5M</code>).
+        </p>
       </div>
 
       {/* ── Productivity Metrics ─────────────────────────────────────────────── */}
@@ -269,32 +279,32 @@ export default function PropertyContextTab({
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <MetricCard
-            label="NOI per Payroll Dollar"
+            label={<Tooltip term="NOI per Payroll Dollar">NOI per Payroll Dollar</Tooltip>}
             value={fmtX(noiPerPayrollDollar)}
             sub={noiPerPayrollDollar !== null ? `$1 of payroll generates ${fmtX(noiPerPayrollDollar)} of NOI` : 'Requires payroll in statement'}
           />
           <MetricCard
-            label="Revenue per Payroll Dollar"
+            label={<Tooltip term="Revenue per Payroll Dollar">Revenue per Payroll Dollar</Tooltip>}
             value={fmtX(revPerPayrollDollar)}
             sub={revPerPayrollDollar !== null ? `$1 of payroll drives ${fmtX(revPerPayrollDollar)} of revenue` : 'Requires payroll in statement'}
           />
           <MetricCard
-            label="NOI per Unit"
+            label={<Tooltip term="NOI per Unit">NOI per Unit</Tooltip>}
             value={fmtDollar(noiPerUnit)}
             sub="Annual NOI divided by unit count"
           />
           <MetricCard
-            label="Revenue per Unit"
+            label={<Tooltip term="Revenue per Unit">Revenue per Unit</Tooltip>}
             value={fmtDollar(revPerUnit)}
             sub="Annual revenue divided by unit count"
           />
           <MetricCard
-            label="NOI per Employee"
+            label={<Tooltip term="NOI per Employee">NOI per Employee</Tooltip>}
             value={fmtDollar(noiPerEmployee)}
             sub="Annual NOI divided by headcount"
           />
           <MetricCard
-            label="Revenue per Employee"
+            label={<Tooltip term="Revenue per Employee">Revenue per Employee</Tooltip>}
             value={fmtDollar(revPerEmployee)}
             sub="Annual revenue divided by headcount"
           />
@@ -313,18 +323,18 @@ export default function PropertyContextTab({
         )}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {([
-            { key: 'capRate',    label: 'Cap Rate',                  display: fmtPct(capRate),    value: capRate },
-            { key: 'coc',        label: 'Cash-on-Cash Return',        display: fmtPct(coc),        value: coc },
-            { key: 'grm',        label: 'Gross Rent Multiplier',      display: fmtX(grm),          value: grm },
-            { key: 'ltv',        label: 'Loan-to-Value',              display: fmtPct(ltv),        value: ltv },
-            { key: 'dscr',       label: 'Debt Service Coverage',      display: fmtX(dscr),         value: dscr },
-            { key: 'debtYield',  label: 'Debt Yield',                 display: fmtPct(debtYield),  value: debtYield },
-            { key: 'noiPerUnit', label: 'NOI per Unit',               display: fmtDollar(noiPerUnit), value: noiPerUnit },
-            { key: 'pricePerUnit', label: 'Price per Unit',           display: fmtDollar(pricePerUnit), value: pricePerUnit },
-          ]).map(({ key, label, display, value }) => (
+            { key: 'capRate',      label: 'Cap Rate',             tooltip: 'Cap Rate',                         display: fmtPct(capRate),         value: capRate },
+            { key: 'coc',          label: 'Cash-on-Cash Return',  tooltip: 'Cash-on-Cash Return',              display: fmtPct(coc),             value: coc },
+            { key: 'grm',          label: 'Gross Rent Multiplier',tooltip: 'Gross Rent Multiplier',            display: fmtX(grm),               value: grm },
+            { key: 'ltv',          label: 'Loan-to-Value',        tooltip: 'Loan-to-Value',                    display: fmtPct(ltv),             value: ltv },
+            { key: 'dscr',         label: 'Debt Service Coverage',tooltip: 'DSCR (Debt Service Coverage Ratio)', display: fmtX(dscr),            value: dscr },
+            { key: 'debtYield',    label: 'Debt Yield',           tooltip: 'Debt Yield',                       display: fmtPct(debtYield),       value: debtYield },
+            { key: 'noiPerUnit',   label: 'NOI per Unit',         tooltip: 'NOI per Unit',                     display: fmtDollar(noiPerUnit),   value: noiPerUnit },
+            { key: 'pricePerUnit', label: 'Price per Unit',       tooltip: 'Price per Unit',                   display: fmtDollar(pricePerUnit), value: pricePerUnit },
+          ]).map(({ key, label, tooltip, display, value }) => (
             <MetricCard
               key={key}
-              label={label}
+              label={<Tooltip term={tooltip}>{label}</Tooltip>}
               value={display}
               status={statusFor(key, value)}
             />
