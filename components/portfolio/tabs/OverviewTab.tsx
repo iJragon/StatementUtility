@@ -1,10 +1,10 @@
 'use client';
 
-import type React from 'react';
 import type { PropertyDetail, CrossYearFlag } from '@/lib/models/portfolio';
 import type { AnalysisResult } from '@/lib/models/statement';
 import { downloadPortfolioPDF } from '@/lib/export/report-html';
 import { formatDollar, pctChange } from '@/lib/utils/format';
+import { renderNarrative } from '@/components/shared/NarrativeText';
 
 interface OverviewTabProps {
   property: PropertyDetail;
@@ -71,38 +71,6 @@ function StatTile({ label, value, sub, status }: {
       {sub && <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>{sub}</p>}
     </div>
   );
-}
-
-function renderSummary(text: string) {
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let key = 0;
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    if (line.startsWith('## ') || line.startsWith('# ')) {
-      const heading = line.replace(/^#+\s*/, '');
-      elements.push(
-        <h4 key={key++} className="text-sm font-semibold mt-4 mb-1 uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-          {heading}
-        </h4>
-      );
-    } else {
-      const parts = line.split(/(\*\*[^*]+\*\*)/g);
-      elements.push(
-        <p key={key++} className="text-sm leading-7 mb-1" style={{ color: 'var(--text)' }}>
-          {parts.map((part, j) =>
-            part.startsWith('**') && part.endsWith('**')
-              ? <strong key={j} style={{ color: 'var(--text)' }}>{part.slice(2, -2)}</strong>
-              : part
-          )}
-        </p>
-      );
-    }
-  }
-  return elements;
 }
 
 // ── Main Component ──────────────────────────────────────────────────────────────
@@ -535,47 +503,50 @@ export default function OverviewTab({
         </div>
       )}
 
-      {/* ── AI Portfolio Summary ─────────────────────────────────────────────── */}
+      {/* ── AI Narrative ─────────────────────────────────────────────────────── */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
-              Management Commentary
-            </h3>
-            {property.portfolioAnalyzedAt && !summaryStreaming && (
-              <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                Last generated: {generatedDate}
-              </p>
+          <div className="flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              style={{ color: 'var(--accent)' }}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--text)' }}>AI Narrative</h3>
+            {summaryStreaming && (
+              <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--accent)' }}>
+                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Generating
+              </span>
             )}
           </div>
-          <button
-            onClick={onGenerateSummary}
-            disabled={summaryStreaming || analyses.length === 0}
-            className="text-xs px-3 py-1.5 rounded-md border transition-colors hover:opacity-80 flex items-center gap-1.5"
-            style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
-          >
-            {summaryStreaming ? (
-              <>
-                <span className="inline-block w-3 h-3 rounded-full border-2 border-t-transparent animate-spin"
-                  style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
-                Generating
-              </>
-            ) : (
-              <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="23 4 23 10 17 10" />
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
-                {summaryText ? 'Regenerate' : 'Generate'} Summary
-              </>
+          <div className="flex items-center gap-3">
+            {property.portfolioAnalyzedAt && !summaryStreaming && summaryText && (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                {generatedDate}
+              </p>
             )}
-          </button>
+            <button
+              onClick={onGenerateSummary}
+              disabled={summaryStreaming || analyses.length === 0}
+              className="text-xs px-3 py-1.5 rounded-md border transition-colors hover:opacity-80 flex items-center gap-1.5"
+              style={{ borderColor: 'var(--border)', color: 'var(--accent)' }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              {summaryText ? 'Regenerate' : 'Generate'} Narrative
+            </button>
+          </div>
         </div>
 
         {summaryText ? (
           <div>
             <div style={{ borderLeft: '3px solid var(--border)', paddingLeft: '1rem' }}>
-              {renderSummary(summaryText)}
+              {renderNarrative(summaryText)}
             </div>
             {summaryStreaming && (
               <span className="inline-block w-1.5 h-4 ml-1 align-middle rounded-sm animate-pulse"
@@ -583,7 +554,7 @@ export default function OverviewTab({
             )}
           </div>
         ) : summaryStreaming ? (
-          <div style={{ borderLeft: '3px solid var(--border)', paddingLeft: '1rem' }}>
+          <div className="space-y-3" style={{ borderLeft: '3px solid var(--border)', paddingLeft: '1rem' }}>
             <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--muted)' }}>
               <svg className="animate-spin w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -591,7 +562,7 @@ export default function OverviewTab({
               </svg>
               Analyzing portfolio data
             </div>
-            <div className="space-y-2 mt-3">
+            <div className="space-y-2 mt-2">
               {[92, 78, 65, 85, 55].map((w, i) => (
                 <div key={i} className="h-3 rounded animate-pulse" style={{ backgroundColor: 'var(--border)', width: `${w}%` }} />
               ))}
@@ -600,8 +571,8 @@ export default function OverviewTab({
         ) : (
           <p className="text-sm" style={{ color: 'var(--muted)' }}>
             {analyses.length === 0
-              ? 'Add statements to this property to generate a portfolio summary.'
-              : 'Click "Generate Summary" to create an AI-powered narrative of this property\'s financial performance across all periods.'}
+              ? 'Add statements to this property to generate an AI narrative.'
+              : 'Click "Generate Narrative" to create an AI-powered narrative of this property\'s financial performance across all periods.'}
           </p>
         )}
       </div>

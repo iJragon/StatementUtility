@@ -3,6 +3,7 @@
 import type React from 'react';
 import type { AnalysisResult } from '@/lib/models/statement';
 import Tooltip from '@/components/Tooltip';
+import { renderNarrative } from '@/components/shared/NarrativeText';
 import { downloadSummaryPDF } from '@/lib/export/report-html';
 
 interface SummaryTabProps {
@@ -28,38 +29,6 @@ function fmtPct(val: number | null | undefined, decimals = 1): string {
 function pctOf(val: number | null, rev: number | null): string {
   if (val === null || rev === null || rev === 0) return '';
   return `${((val / Math.abs(rev)) * 100).toFixed(1)}%`;
-}
-
-function renderSummary(text: string) {
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let key = 0;
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    if (line.startsWith('## ') || line.startsWith('# ')) {
-      const heading = line.replace(/^#+\s*/, '');
-      elements.push(
-        <h4 key={key++} className="text-sm font-semibold mt-4 mb-1 uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-          {heading}
-        </h4>
-      );
-    } else {
-      const parts = line.split(/(\*\*[^*]+\*\*)/g);
-      elements.push(
-        <p key={key++} className="text-sm leading-7 mb-1" style={{ color: 'var(--text)' }}>
-          {parts.map((part, j) =>
-            part.startsWith('**') && part.endsWith('**')
-              ? <strong key={j} style={{ color: 'var(--text)' }}>{part.slice(2, -2)}</strong>
-              : part
-          )}
-        </p>
-      );
-    }
-  }
-  return elements;
 }
 
 // ── Income Statement Row ──────────────────────────────────────────────────────
@@ -448,7 +417,7 @@ export default function SummaryTab({ analysis, summaryText, summaryStreaming, on
         {summaryText ? (
           <div>
             <div style={{ borderLeft: '3px solid var(--border)', paddingLeft: '1rem' }}>
-              {renderSummary(summaryText)}
+              {renderNarrative(summaryText)}
             </div>
             {summaryStreaming && (
               <span className="inline-block w-1.5 h-4 ml-1 align-middle rounded-sm animate-pulse"
