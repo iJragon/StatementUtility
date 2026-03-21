@@ -20,6 +20,7 @@ import AnomaliesTab from '@/components/dashboard/tabs/AnomaliesTab';
 import DealDetailsTab, { type DealInputs, DEFAULT_DEAL_INPUTS } from '@/components/dashboard/tabs/DealDetailsTab';
 import ChatTab from '@/components/dashboard/tabs/ChatTab';
 import CustomChartsTab from '@/components/dashboard/tabs/CustomChartsTab';
+import BenchmarksTab from '@/components/dashboard/tabs/BenchmarksTab';
 import PropertyView from '@/components/portfolio/PropertyView';
 
 interface DashboardClientProps {
@@ -33,6 +34,7 @@ const ANALYSIS_TABS = [
   { id: 'revenue', label: 'Revenue' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'ratios', label: 'Ratios' },
+  { id: 'benchmarks', label: 'Benchmarks' },
   { id: 'trends', label: 'Trends' },
   { id: 'anomalies', label: 'Anomalies' },
 ];
@@ -859,6 +861,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                   {activeTab === 'revenue' && <RevenueTab analysis={analysis} />}
                   {activeTab === 'expenses' && <ExpensesTab analysis={analysis} />}
                   {activeTab === 'ratios' && <RatiosTab analysis={analysis} />}
+                  {activeTab === 'benchmarks' && <BenchmarksTab ratios={analysis.ratios} />}
                   {activeTab === 'trends' && <TrendsTab analysis={analysis} />}
                   {activeTab === 'anomalies' && (
                     <AnomaliesTab
