@@ -178,7 +178,7 @@ export async function downloadSummaryPDF(analysis: AnalysisResult, summaryText: 
   const docDef: any = {
     pageSize: 'A4',
     pageMargins: [56, 48, 56, 48],
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: C.black },
+    defaultStyle: { font: 'Helvetica', fontSize: 10, color: C.black },
 
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
@@ -246,7 +246,8 @@ export async function downloadSummaryPDF(analysis: AnalysisResult, summaryText: 
     ],
   };
 
-  const filename = `${statement.propertyName} - ${statement.period}.pdf`.replace(/[/\\?%*:|"<>]/g, '-');
+  const period = statement.period || new Date(analysis.analyzedAt).getFullYear().toString();
+  const filename = `${statement.propertyName} - ${period}.pdf`.replace(/[/\\?%*:|"<>]/g, '-');
   await renderAndDownload(docDef, filename);
 }
 
@@ -332,7 +333,7 @@ export async function downloadPortfolioPDF(
   const docDef: any = {
     pageSize: 'A4',
     pageMargins: [56, 48, 56, 48],
-    defaultStyle: { font: 'Roboto', fontSize: 10, color: C.black },
+    defaultStyle: { font: 'Helvetica', fontSize: 10, color: C.black },
 
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
@@ -398,14 +399,25 @@ export async function downloadPortfolioPDF(
 }
 
 // ── pdfmake renderer ──────────────────────────────────────────────────────────
+// Uses standard PDF fonts (Helvetica) — no vfs_fonts bundle needed.
+// Every PDF viewer has these built in so they don't need to be embedded.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function renderAndDownload(docDef: any, filename: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfMake = (await import('pdfmake/build/pdfmake')) as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfFonts = (await import('pdfmake/build/vfs_fonts' as any)) as any;
   const instance = pdfMake.default ?? pdfMake;
-  instance.vfs = (pdfFonts.default ?? pdfFonts)?.pdfMake?.vfs ?? pdfFonts;
-  instance.createPdf(docDef).download(filename);
+
+  // Configure standard PDF fonts — no vfs needed
+  instance.fonts = {
+    Helvetica: {
+      normal:      'Helvetica',
+      bold:        'Helvetica-Bold',
+      italics:     'Helvetica-Oblique',
+      bolditalics: 'Helvetica-BoldOblique',
+    },
+  };
+
+  instance.createPdf({ ...docDef, defaultStyle: { ...docDef.defaultStyle, font: 'Helvetica' } })
+    .download(filename);
 }
