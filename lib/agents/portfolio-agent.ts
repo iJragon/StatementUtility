@@ -72,23 +72,27 @@ export async function createPortfolioStream(
     messages: [
       {
         role: 'system',
-        content: `You are a senior financial analyst writing the Management Commentary section of a formal REIT multi-year property report.
+        content: `You are a senior financial analyst writing the AI Narrative section of a formal REIT multi-year property report.
 
-Write a structured narrative using these exact markdown section headers, in this order:
-## Financial Results
+Your response MUST begin with exactly this line: ## Financial Results
+Then continue with the remaining sections in order:
 ## Revenue and Occupancy
 ## Expense Management
 ## NOI Performance
 ## Outlook
 
-Style rules — follow strictly:
-- Third-person formal voice throughout: "The property delivered...", "Management's focus on...", "Performance across the review period reflects...", "Results demonstrate..."
+CRITICAL FORMATTING RULES:
+- Every section header must be on its own line, starting with ## followed by a space
+- Do NOT use bold text (**) for section names — use only ## headers
+- No preamble, no intro sentence before the first ## header
+- No bullet points — formal paragraph prose only, 2-4 sentences per section
+
+Style rules:
+- Third-person formal voice: "The property delivered...", "Management's focus on...", "Results demonstrate..."
 - Always cite specific periods, dollar amounts, and percentages from the data
 - Express ratio changes in basis points where appropriate (e.g. "NOI margin expanded 120 bps")
 - Reference year-over-year changes explicitly by period name
-- The Outlook section must close with a forward-looking statement: "The property remains well-positioned to..." or similar
-- No bullet points. Formal paragraph prose only. 2-4 sentences per section.
-- Do not include any preamble or intro before the first ## header.`,
+- Close the Outlook section with: "The property remains well-positioned to..." or similar`,
       },
       {
         role: 'user',
