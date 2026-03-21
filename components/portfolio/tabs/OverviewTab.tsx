@@ -106,6 +106,7 @@ function StatTile({ label, value, sub, status }: {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 import type React from 'react';
+import { generatePortfolioHTML, printHTML } from '@/lib/export/report-html';
 
 export default function OverviewTab({
   property,
@@ -168,12 +169,31 @@ export default function OverviewTab({
         className="rounded-xl px-6 py-5 border"
         style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}
       >
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>
-          Property Overview
-        </p>
-        <h2 className="text-2xl font-bold leading-tight mb-3" style={{ color: 'var(--text)' }}>
-          {property.name}
-        </h2>
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--muted)' }}>
+              Property Overview
+            </p>
+            <h2 className="text-2xl font-bold leading-tight" style={{ color: 'var(--text)' }}>
+              {property.name}
+            </h2>
+          </div>
+          <button
+            onClick={() => printHTML(
+              generatePortfolioHTML(property, analyses, periods, summaryText),
+              `Property Overview — ${property.name}`,
+            )}
+            className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-opacity hover:opacity-70"
+            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Export PDF
+          </button>
+        </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1">
           {[
             { label: 'Reporting Period', value: periodRange },
