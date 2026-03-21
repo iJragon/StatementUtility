@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Guard: if extraction produced no key figures or no period, the AI call failed
-    // (rate-limited after all retries, or malformed response). Do not cache — let
+    // (rate-limited after all retries, or malformed response). Do not cache; let
     // the client retry by re-uploading the file.
     const extractionFailed =
       !statement.period ||

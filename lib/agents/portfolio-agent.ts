@@ -92,7 +92,7 @@ Write a concise, insightful portfolio summary (3-5 paragraphs) covering:
 4. NOI performance and margin evolution
 5. Key strengths and areas of concern the investor should watch
 
-Be specific with numbers. Use plain paragraph text — no markdown headers, no bullet points.
+Be specific with numbers. Use plain paragraph text - no markdown headers, no bullet points.
 Reference the specific periods and year-over-year changes.`,
       },
       {

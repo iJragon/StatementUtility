@@ -4,7 +4,7 @@ import type { AnalysisResult } from '@/lib/models/statement';
 import { migrateStatement } from '@/lib/models/statement';
 import type { PropertyDetail, PropertyStatement } from '@/lib/models/portfolio';
 
-// GET /api/properties/[id] — returns property detail with statements and analyses
+// GET /api/properties/[id] - returns property detail with statements and analyses
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -111,7 +111,7 @@ export async function GET(
   return NextResponse.json({ property: detail, analyses });
 }
 
-// DELETE /api/properties/[id] — deletes a property
+// DELETE /api/properties/[id] - deletes a property
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -131,7 +131,7 @@ export async function DELETE(
   return NextResponse.json({ success: true });
 }
 
-// PATCH /api/properties/[id] — update portfolio_summary
+// PATCH /api/properties/[id] - update portfolio_summary
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

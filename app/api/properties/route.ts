@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// GET /api/properties — list all properties for the current user
+// GET /api/properties - list all properties for the current user
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,7 +32,7 @@ export async function GET() {
   return NextResponse.json({ properties });
 }
 
-// POST /api/properties — create a new property
+// POST /api/properties - create a new property
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

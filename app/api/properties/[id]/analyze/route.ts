@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createPortfolioStream } from '@/lib/agents/portfolio-agent';
 import type { AnalysisResult } from '@/lib/models/statement';
 
-// POST /api/properties/[id]/analyze — stream portfolio summary
+// POST /api/properties/[id]/analyze - stream portfolio summary
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

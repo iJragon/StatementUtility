@@ -593,7 +593,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
   }
 
-  // Analyze a file for a property context — adds to history automatically
+  // Analyze a file for a property context - adds to history automatically
   async function handleAnalyzeFileForProperty(file: File): Promise<AnalysisResult> {
     const formData = new FormData();
     formData.append('file', file);

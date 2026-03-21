@@ -4,10 +4,10 @@
  * Ranges are sourced from widely-cited consensus figures across IREM
  * Income/Expense Analysis reports, NMHC Research, and ULI Emerging
  * Trends publications. These represent "healthy" operating ranges
- * for each property class — not absolutes.
+ * for each property class, not absolutes.
  *
  * TO UPDATE: Edit the BENCHMARKS array below and bump BENCHMARK_META.lastUpdated.
- * Review annually — IREM typically publishes new data each January.
+ * Review annually. IREM typically publishes new data each January.
  */
 
 export const BENCHMARK_META = {
@@ -43,15 +43,15 @@ export interface BenchmarkDef {
 export const PROPERTY_CLASSES: Record<PropertyClass, { label: string; description: string }> = {
   A: {
     label: 'Class A',
-    description: 'Luxury / Institutional — built 1990s+, premium finishes, high-demand markets',
+    description: 'Luxury / Institutional, built 1990s+, premium finishes, high-demand markets',
   },
   B: {
     label: 'Class B',
-    description: 'Workforce / Mid-market — built 1970s–1990s, moderate amenities, stable renter base',
+    description: 'Workforce / Mid-market, built 1970s-1990s, moderate amenities, stable renter base',
   },
   C: {
     label: 'Class C',
-    description: 'Affordable / Value-add — built pre-1970s, basic amenities, higher operational intensity',
+    description: 'Affordable / Value-add, built pre-1970s, basic amenities, higher operational intensity',
   },
 };
 

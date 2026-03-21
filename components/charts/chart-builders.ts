@@ -320,7 +320,7 @@ export function kpiGauge(label: string, value: number | null, lo: number, hi: nu
         valueformat: unit === 'x' ? '.2f' : '.1f',
         font: { size: 22 },
       },
-      // title omitted — shown above the gauge in the parent component to avoid duplication
+      // title omitted - shown above the gauge in the parent component to avoid duplication
       gauge: {
         axis: {
           range: [0, maxVal],
@@ -354,7 +354,7 @@ export function kpiGauge(label: string, value: number | null, lo: number, hi: nu
   return { data, layout };
 }
 
-// 8. Expense heatmap — organized by named categories using AI-extracted key figures
+// 8. Expense heatmap - organized by named categories using AI-extracted key figures
 export function expenseHeatmap(statement: FinancialStatement) {
   const months = statement.months;
 
@@ -412,11 +412,11 @@ export function expenseHeatmap(statement: FinancialStatement) {
       z,
       customdata,
       colorscale: [
-        [0,    '#16a34a'],  // green — well below average (good)
-        [0.35, '#86efac'],  // light green — slightly below average
-        [0.5,  '#f1f5f9'],  // near-white — average (neutral, no signal)
-        [0.65, '#fca5a5'],  // light red — slightly above average
-        [1,    '#dc2626'],  // red — well above average (bad)
+        [0,    '#16a34a'],  // green - well below average (good)
+        [0.35, '#86efac'],  // light green - slightly below average
+        [0.5,  '#f1f5f9'],  // near-white - average (neutral, no signal)
+        [0.65, '#fca5a5'],  // light red - slightly above average
+        [1,    '#dc2626'],  // red - well above average (bad)
       ],
       zmin: 0,
       zmax: 1,

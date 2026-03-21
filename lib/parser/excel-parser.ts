@@ -192,7 +192,7 @@ export async function parseExcel(data: Buffer | ArrayBuffer): Promise<FinancialS
       .filter(Boolean);
     if (vals.length > 0) headerLines.push(vals.join(' | '));
   }
-  const headerText = headerLines.join(' — ');
+  const headerText = headerLines.join(' - ');
 
   // ── 5. Parse all data rows into LineItems ──────────────────────────────────
   const allRows: LineItem[] = [];

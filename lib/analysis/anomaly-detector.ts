@@ -29,7 +29,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
       .map(([, v]) => v.label),
   );
 
-  // ── 1. Missing data — only flag key figure rows ──────────────────────────
+  // ── 1. Missing data - only flag key figure rows ──────────────────────────
   for (const [key, row] of Object.entries(keyFigures)) {
     const vals = months.map(m => row.monthlyValues[m]);
     const nullCount = vals.filter(v => v === null).length;
@@ -63,7 +63,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     }
   }
 
-  // ── 2. Sign changes — key figure rows only, minimum magnitude $500 ───────
+  // ── 2. Sign changes - key figure rows only, minimum magnitude $500 ───────
   for (const row of Object.values(keyFigures)) {
     const vals = months.map(m => row.monthlyValues[m]).filter((v): v is number => v !== null);
     if (vals.length < 3) continue;
@@ -100,7 +100,7 @@ export function detectAnomalies(statement: FinancialStatement): Anomaly[] {
     }
   }
 
-  // ── 3. Statistical outliers — one anomaly per key figure row ─────────────
+  // ── 3. Statistical outliers - one anomaly per key figure row ─────────────
   for (const row of Object.values(keyFigures)) {
     if (row.isHeader || row.isSubtotal) continue;
     const vals = months.map(m => row.monthlyValues[m]).filter((v): v is number => v !== null);

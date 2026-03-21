@@ -342,7 +342,7 @@ export default function PropertyView({
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-6">
         {isEmpty ? (
-          // Empty state — prominent CTA
+          // Empty state - prominent CTA
           <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center"
@@ -597,7 +597,7 @@ export default function PropertyView({
               <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text)' }}>Remove Statement?</h3>
               <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
                 Remove <strong>{label}</strong> from <strong>{property.name}</strong>?
-                The underlying analysis will remain in your History — only the link to this property is removed.
+                The underlying analysis will remain in your Analyses. Only the link to this property is removed.
               </p>
               <div className="flex gap-2 justify-end">
                 <button

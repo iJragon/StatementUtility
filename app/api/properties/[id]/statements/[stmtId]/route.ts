@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// DELETE /api/properties/[id]/statements/[stmtId] — remove a statement link
+// DELETE /api/properties/[id]/statements/[stmtId] - remove a statement link
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; stmtId: string }> },
@@ -22,7 +22,7 @@ export async function DELETE(
   return NextResponse.json({ success: true });
 }
 
-// PATCH /api/properties/[id]/statements/[stmtId] — update year_label
+// PATCH /api/properties/[id]/statements/[stmtId] - update year_label
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; stmtId: string }> },

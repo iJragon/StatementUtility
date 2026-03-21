@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import type { LineItem, ParserReportEntry } from '../models/statement';
 
-// Use a more capable model for extraction — this is a one-time call per file,
+// Use a more capable model for extraction. This is a one-time call per file,
 // not a streaming chat, so accuracy matters more than speed.
 const EXTRACTION_MODEL = 'llama-3.3-70b-versatile';
 
@@ -11,7 +11,7 @@ function isRateLimitError(err: unknown): boolean {
   return err.message.toLowerCase().includes('rate limit') || err.message.includes('429');
 }
 
-// Daily token cap (TPD) cannot be resolved by retrying — fail immediately
+// Daily token cap (TPD) cannot be resolved by retrying, so fail immediately
 function isDailyTokenCap(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return err.message.includes('tokens per day') || err.message.includes('TPD');
@@ -39,7 +39,7 @@ async function callWithRetry(
         throw new Error(`Daily analysis limit reached.${waitHint}`);
       }
       const delay = Math.pow(2, attempt) * 1000; // 1 s, 2 s, 4 s, 8 s
-      console.warn(`[ai-extractor] Rate limited — retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      console.warn(`[ai-extractor] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -58,14 +58,14 @@ export async function extractKeyFiguresWithAI(
 }> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.warn('[ai-extractor] No GROQ_API_KEY — returning empty key figures');
+    console.warn('[ai-extractor] No GROQ_API_KEY, returning empty key figures');
     return { keyFigures: {}, parserReport: [], propertyName: 'Unknown Property', period: 'Unknown Period', bookType: 'Accrual' };
   }
 
   const client = new Groq({ apiKey });
 
   // Build a numbered row list for the AI. Only rows with a numeric annual total
-  // are included — pure section-header rows (no dollar values) are noise.
+  // are included. Pure section-header rows (no dollar values) are noise.
   // Original row indices are preserved so the AI's returned row numbers map
   // back correctly to allRows. Capped at 200 rows to limit token usage.
   const rowList = allRows
@@ -90,45 +90,45 @@ ${rowList}
 
 YOUR TASKS:
 
-TASK 1 — Extract metadata from the header rows above:
+TASK 1: Extract metadata from the header rows above:
 - propertyName: name of the property or portfolio
 - period: reporting period (e.g. "January – December 2024")
 - bookType: "Accrual" or "Cash"
 
-TASK 2 — For each financial concept listed below, identify the SINGLE best-matching row number from the list above.
+TASK 2: For each financial concept listed below, identify the SINGLE best-matching row number from the list above.
 
 Selection rules:
-- Prefer [subtotal] rows over [section header] rows — headers typically have no dollar amounts
+- Prefer [subtotal] rows over [section header] rows (headers typically have no dollar amounts)
 - Prefer the most specific and complete subtotal (e.g. "TOTAL GROSS POTENTIAL RENT" over "GROSS POTENTIAL RENT [section header]")
 - For vacancy: find the specific deduction line for empty units (e.g. "Loss Due to Vacancies", "Vacancy Apartments", "Physical Vacancy"). Do NOT select a general "Total Loss" line that aggregates multiple deduction types
 - For total_revenue / total_operating_expenses / noi: look for the main subtotal lines, not section headers
-- Use null ONLY if the concept is genuinely absent from this statement — do not guess if truly missing
+- Use null ONLY if the concept is genuinely absent from this statement. Do not guess if truly missing
 - Negative annual totals are normal for expense and loss rows
 
 Financial concepts to identify:
-gross_potential_rent       — Max possible rent if all units occupied at full asking price (Gross Potential Rent / Scheduled Rent / GPR)
-vacancy_loss               — Lost rent from vacant units specifically (NOT a combined loss/deduction total)
-concession_loss            — Rent discounts / concessions / move-in specials
-bad_debt                   — Uncollected rent written off (Bad Debt / Write-offs / Collection Loss)
-net_rental_revenue         — Net rental income after vacancy/concession/bad debt deductions
-other_tenant_charges       — Other income beyond base rent: pet fees, parking, laundry, misc tenant income
-total_revenue              — Total effective gross income / total revenue (primary revenue subtotal)
-controllable_expenses      — Subtotal of manageable operating costs (payroll, maintenance, marketing, etc.)
-non_controllable_expenses  — Subtotal of fixed costs management cannot easily change (taxes, insurance, etc.)
-total_operating_expenses   — Grand total of ALL operating expenses before NOI
-noi                        — Net Operating Income = revenue minus all operating expenses
-total_payroll              — All personnel / payroll / labor costs subtotal
-management_fees            — Property management company fee
-utilities                  — Utilities subtotal (water, sewer, electric, gas combined)
-real_estate_taxes          — Property / real estate taxes
-insurance                  — Property insurance / hazard insurance
-financial_expense          — Debt service / mortgage / interest expense / principal & interest (below NOI)
-replacement_expense        — Replacement reserve / capital reserve
-total_non_operating        — Total of all non-operating / below-the-line expenses
-net_income                 — Net income after ALL expenses including debt service (true bottom line)
-cash_flow                  — Net cash flow / cash flow from operations
+gross_potential_rent:      Max possible rent if all units occupied at full asking price (Gross Potential Rent / Scheduled Rent / GPR)
+vacancy_loss:              Lost rent from vacant units specifically (NOT a combined loss/deduction total)
+concession_loss:           Rent discounts / concessions / move-in specials
+bad_debt:                  Uncollected rent written off (Bad Debt / Write-offs / Collection Loss)
+net_rental_revenue:        Net rental income after vacancy/concession/bad debt deductions
+other_tenant_charges:      Other income beyond base rent: pet fees, parking, laundry, misc tenant income
+total_revenue:             Total effective gross income / total revenue (primary revenue subtotal)
+controllable_expenses:     Subtotal of manageable operating costs (payroll, maintenance, marketing, etc.)
+non_controllable_expenses: Subtotal of fixed costs management cannot easily change (taxes, insurance, etc.)
+total_operating_expenses:  Grand total of ALL operating expenses before NOI
+noi:                       Net Operating Income = revenue minus all operating expenses
+total_payroll:             All personnel / payroll / labor costs subtotal
+management_fees:           Property management company fee
+utilities:                 Utilities subtotal (water, sewer, electric, gas combined)
+real_estate_taxes:         Property / real estate taxes
+insurance:                 Property insurance / hazard insurance
+financial_expense:         Debt service / mortgage / interest expense / principal & interest (below NOI)
+replacement_expense:       Replacement reserve / capital reserve
+total_non_operating:       Total of all non-operating / below-the-line expenses
+net_income:                Net income after ALL expenses including debt service (true bottom line)
+cash_flow:                 Net cash flow / cash flow from operations
 
-Respond with ONLY a valid JSON object. No markdown fences, no explanation, no extra text — just the JSON:
+Respond with ONLY a valid JSON object. No markdown fences, no explanation, no extra text. Just the JSON:
 {
   "propertyName": "...",
   "period": "...",
@@ -210,6 +210,6 @@ Respond with ONLY a valid JSON object. No markdown fences, no explanation, no ex
     };
   } catch (err) {
     console.error('[ai-extractor] Extraction failed:', err);
-    throw err; // Let the caller (route.ts) handle this — do NOT cache a failed result
+    throw err; // Let the caller (route.ts) handle this. Do NOT cache a failed result
   }
 }

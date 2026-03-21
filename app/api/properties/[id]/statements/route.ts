@@ -4,7 +4,7 @@ import type { AnalysisResult } from '@/lib/models/statement';
 import { migrateStatement } from '@/lib/models/statement';
 import type { PropertyStatement } from '@/lib/models/portfolio';
 
-// POST /api/properties/[id]/statements — add one or more statements to a property
+// POST /api/properties/[id]/statements - add one or more statements to a property
 // Returns full analysis data for each added statement so the client can update
 // incrementally without reloading the entire property (O(K) vs O(N)).
 export async function POST(

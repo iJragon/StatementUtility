@@ -197,7 +197,7 @@ export default function DealDetailsTab({ analysis, inputs, onInputChange }: Deal
           );
         })}
       </div>
-      {/* AI Extraction Report — shows exactly what the AI identified for each key figure */}
+      {/* AI Extraction Report - shows exactly what the AI identified for each key figure */}
       {statement.parserReport && statement.parserReport.length > 0 && (
         <div className="card">
           <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--text)' }}>AI Data Extraction Report</h3>
