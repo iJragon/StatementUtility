@@ -6,8 +6,19 @@
  * Trends publications. These represent "healthy" operating ranges
  * for each property class — not absolutes.
  *
- * Updated: 2024. Review annually as market conditions shift.
+ * TO UPDATE: Edit the BENCHMARKS array below and bump BENCHMARK_META.lastUpdated.
+ * Review annually — IREM typically publishes new data each January.
  */
+
+export const BENCHMARK_META = {
+  lastUpdated: 'January 2025',
+  sources: [
+    { name: 'IREM Income/Expense Analysis', url: 'https://www.irem.org/resources/by-type/research' },
+    { name: 'NMHC Research & Insight', url: 'https://www.nmhc.org/research-insight/' },
+    { name: 'ULI Emerging Trends in Real Estate 2024', url: 'https://knowledge.uli.org' },
+  ],
+  note: 'Ranges reflect national medians for stabilized properties. Local markets, property age, unit mix, and capital structure may shift thresholds materially.',
+};
 
 export type PropertyClass = 'A' | 'B' | 'C';
 

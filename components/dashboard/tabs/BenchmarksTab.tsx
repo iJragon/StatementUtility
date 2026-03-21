@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { RatioReport } from '@/lib/models/statement';
 import {
   BENCHMARKS,
+  BENCHMARK_META,
   PROPERTY_CLASSES,
   evaluateBenchmark,
   barPosition,
@@ -32,6 +33,10 @@ function formatValue(value: number, unit: '%' | 'x'): string {
   return unit === 'x' ? `${value.toFixed(2)}x` : `${value.toFixed(1)}%`;
 }
 
+function formatRange(lo: number, hi: number, unit: '%' | 'x'): string {
+  return `${formatValue(lo, unit)} – ${formatValue(hi, unit)}`;
+}
+
 function RangeBar({
   value,
   bm,
@@ -50,12 +55,10 @@ function RangeBar({
 
   return (
     <div className="mt-3 mb-1">
-      {/* Track */}
       <div
         className="relative rounded-full"
         style={{ height: 6, backgroundColor: 'var(--border)' }}
       >
-        {/* Benchmark zone */}
         <div
           className="absolute top-0 bottom-0 rounded-full"
           style={{
@@ -64,7 +67,6 @@ function RangeBar({
             backgroundColor: 'rgba(120,130,160,0.3)',
           }}
         />
-        {/* Value dot */}
         <div
           className="absolute rounded-full border-2"
           style={{
@@ -79,8 +81,6 @@ function RangeBar({
           }}
         />
       </div>
-
-      {/* Scale labels */}
       <div className="flex justify-between mt-1.5">
         <span className="text-xs" style={{ color: 'var(--muted)', opacity: 0.55 }}>
           {formatValue(barMin, def.unit)}
@@ -121,7 +121,6 @@ function BenchmarkCard({
 
   return (
     <div className="card flex flex-col">
-      {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-0.5">
         <p className="text-xs font-semibold leading-tight" style={{ color: 'var(--text)' }}>
           {def.label}
@@ -133,24 +132,114 @@ function BenchmarkCard({
           {status}
         </span>
       </div>
-
       <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>{def.description}</p>
-
-      {/* Value */}
       <p className="text-2xl font-bold leading-none" style={{ color: STATUS_COLORS[status] }}>
         {formatValue(value, def.unit)}
       </p>
-
-      {/* Bar */}
       <RangeBar value={value} bm={bm} def={def} status={status} />
+    </div>
+  );
+}
+
+function ReferenceTable() {
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+            Benchmark Reference Table
+          </h3>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+            Full ranges used for scoring, by property class
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
+            Last updated
+          </p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+            {BENCHMARK_META.lastUpdated}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b" style={{ borderColor: 'var(--border)' }}>
+              <th className="text-left pb-2 font-medium pr-4" style={{ color: 'var(--muted)', minWidth: 160 }}>
+                Metric
+              </th>
+              {(['A', 'B', 'C'] as PropertyClass[]).map(cls => (
+                <th key={cls} className="text-center pb-2 font-medium px-4" style={{ color: 'var(--muted)', minWidth: 130 }}>
+                  Class {cls}
+                </th>
+              ))}
+              <th className="text-left pb-2 font-medium pl-4" style={{ color: 'var(--muted)', minWidth: 100 }}>
+                Direction
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {BENCHMARKS.map((def, i) => (
+              <tr
+                key={def.key}
+                className="border-b"
+                style={{ borderColor: 'var(--border)', backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(120,130,160,0.03)' }}
+              >
+                <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text)' }}>
+                  {def.label}
+                </td>
+                {(['A', 'B', 'C'] as PropertyClass[]).map(cls => (
+                  <td key={cls} className="py-2.5 text-center px-4 font-mono" style={{ color: 'var(--text)' }}>
+                    {formatRange(def[cls].lo, def[cls].hi, def.unit)}
+                  </td>
+                ))}
+                <td className="py-2.5 pl-4" style={{ color: 'var(--muted)' }}>
+                  {def.lowerIsBetter ? '↓ lower' : '↑ higher'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Sources */}
+      <div className="mt-5 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+        <p className="text-xs font-semibold mb-2" style={{ color: 'var(--muted)' }}>Sources</p>
+        <ul className="space-y-1">
+          {BENCHMARK_META.sources.map(s => (
+            <li key={s.name} className="flex items-center gap-1.5">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                style={{ color: 'var(--muted)', flexShrink: 0 }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              <a
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs hover:underline"
+                style={{ color: 'var(--accent)' }}
+              >
+                {s.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--muted)', opacity: 0.7 }}>
+          {BENCHMARK_META.note}
+        </p>
+      </div>
     </div>
   );
 }
 
 export default function BenchmarksTab({ ratios }: BenchmarksTabProps) {
   const [propertyClass, setPropertyClass] = useState<PropertyClass>('B');
+  const [showReference, setShowReference] = useState(false);
 
-  // Resolve ratio values from the RatioReport by key
   const getValue = (key: string): number | null => {
     const r = ratios[key as keyof RatioReport];
     return r?.value ?? null;
@@ -158,7 +247,6 @@ export default function BenchmarksTab({ ratios }: BenchmarksTabProps) {
 
   const values = BENCHMARKS.map(def => getValue(def.key));
 
-  // Summary counts
   const scored = BENCHMARKS.map((def, i) => {
     const v = values[i];
     if (v === null) return null;
@@ -230,13 +318,29 @@ export default function BenchmarksTab({ ratios }: BenchmarksTabProps) {
         ))}
       </div>
 
-      {/* Source footnote */}
-      <p className="text-xs pb-2" style={{ color: 'var(--muted)', opacity: 0.6 }}>
-        Benchmark ranges are derived from consensus figures across IREM Income/Expense Analysis,
-        NMHC Research, and ULI Emerging Trends reports (2023–2024). Ranges reflect national
-        medians — local markets, property age, and unit mix may shift thresholds materially.
-        Use as directional guidance, not absolute targets.
-      </p>
+      {/* Reference table toggle */}
+      <div>
+        <button
+          onClick={() => setShowReference(v => !v)}
+          className="flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-70"
+          style={{ color: 'var(--accent)' }}
+        >
+          <svg
+            width="12" height="12" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5"
+            style={{ transform: showReference ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          {showReference ? 'Hide' : 'View'} benchmark reference table
+        </button>
+
+        {showReference && (
+          <div className="mt-3">
+            <ReferenceTable />
+          </div>
+        )}
+      </div>
 
     </div>
   );
