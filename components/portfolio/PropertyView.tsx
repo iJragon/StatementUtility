@@ -28,14 +28,15 @@ interface PropertyViewProps {
   onDeleteProperty: () => void;
 }
 
-const TABS = [
+const MAIN_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'metrics', label: 'Key Metrics' },
   { id: 'trends', label: 'Trends' },
   { id: 'expenses', label: 'Expenses' },
   { id: 'flags', label: 'Cross-Year Flags' },
-  { id: 'chat', label: 'Ask AI' },
 ];
+
+const CHAT_TAB = { id: 'chat', label: 'Ask AI' };
 
 function formatDate(iso: string) {
   try {
@@ -345,7 +346,8 @@ export default function PropertyView({
           className="flex border-b overflow-x-auto"
           style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}
         >
-          {TABS.map(tab => (
+          {/* Main tabs */}
+          {MAIN_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -363,6 +365,24 @@ export default function PropertyView({
               )}
             </button>
           ))}
+
+          {/* Spacer + separator + Chat tab (right-justified) */}
+          <div className="flex-1" />
+          <div className="flex items-stretch" style={{ borderLeft: '1px solid var(--border)' }}>
+            <button
+              onClick={() => setActiveTab(CHAT_TAB.id)}
+              className="px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5"
+              style={{
+                color: activeTab === CHAT_TAB.id ? 'var(--accent)' : 'var(--muted)',
+                borderBottom: activeTab === CHAT_TAB.id ? '2px solid var(--accent)' : '2px solid transparent',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              {CHAT_TAB.label}
+            </button>
+          </div>
         </div>
       )}
 

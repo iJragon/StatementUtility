@@ -22,7 +22,7 @@ function fmt$(val: number): string {
   return `${sign}$${abs.toFixed(0)}`;
 }
 
-function buildPortfolioContext(propertyName: string, analyses: AnalysisResult[], periods: string[]): string {
+function buildContext(propertyName: string, analyses: AnalysisResult[], periods: string[]): string {
   const lines: string[] = [];
   lines.push(`=== PROPERTY: ${propertyName} ===`);
   lines.push(`Periods analyzed: ${periods.join(', ')}`);
@@ -58,48 +58,95 @@ function buildPortfolioContext(propertyName: string, analyses: AnalysisResult[],
   return lines.join('\n');
 }
 
-const SUGGESTED_QUESTIONS = [
+const INITIAL_SUGGESTIONS = [
   'What drove the biggest changes in NOI across periods?',
-  'How has vacancy trended and what is the impact on revenue?',
-  'Compare expense growth to revenue growth across all periods.',
+  'How has vacancy trended and what is the impact?',
+  'Compare expense growth to revenue growth',
   'Which period performed best and why?',
   'What are the key risks to NOI going forward?',
+  'Is payroll as a percentage of revenue within norms?',
 ];
 
-export default function PropertyChatTab({ propertyName, analyses, periods }: PropertyChatTabProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+function renderMessage(content: string) {
+  const lines = content.split('\n');
+  return lines.map((line, i) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+    return (
+      <p key={i} className={`text-sm leading-6 ${i > 0 ? 'mt-1' : ''}`}>
+        {parts.map((part, j) =>
+          part.startsWith('**') && part.endsWith('**')
+            ? <strong key={j}>{part.slice(2, -2)}</strong>
+            : part,
+        )}
+      </p>
+    );
+  });
+}
 
-  const context = buildPortfolioContext(propertyName, analyses, periods);
+export default function PropertyChatTab({ propertyName, analyses, periods }: PropertyChatTabProps) {
+  const [chatHistory, setChatHistory] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const prevStreamingRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const context = buildContext(propertyName, analyses, periods);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
 
-  async function send() {
-    const question = input.trim();
-    if (!question || loading) return;
+  // Fetch contextual follow-up suggestions when streaming ends
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    prevStreamingRef.current = isStreaming;
 
-    const userMsg: Message = { role: 'user', content: question };
-    const history = messages.map(m => ({ role: m.role, content: m.content }));
-    const newMessages = [...messages, userMsg];
-    setMessages([...newMessages, { role: 'assistant', content: '' }]);
+    if (wasStreaming && !isStreaming && chatHistory.length >= 2) {
+      const lastAssistant = [...chatHistory].reverse().find(m => m.role === 'assistant');
+      const lastUser = [...chatHistory].reverse().find(m => m.role === 'user');
+      if (lastAssistant?.content && lastUser?.content) {
+        setLoadingSuggestions(true);
+        fetch('/api/chat/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: lastUser.content, answer: lastAssistant.content }),
+        })
+          .then(r => r.json())
+          .then(data => setFollowUpSuggestions(data.suggestions ?? []))
+          .catch(() => setFollowUpSuggestions([]))
+          .finally(() => setLoadingSuggestions(false));
+      }
+    }
+  }, [isStreaming, chatHistory]);
+
+  async function handleSend(q?: string) {
+    const text = (q ?? input).trim();
+    if (!text || isStreaming) return;
+
     setInput('');
-    setLoading(true);
+    setFollowUpSuggestions([]);
+
+    const history = chatHistory.map(m => ({ role: m.role, content: m.content }));
+    const userMsg: Message = { role: 'user', content: text };
+    const newHistory = [...chatHistory, userMsg];
+    setChatHistory(newHistory);
+    setIsStreaming(true);
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, history, context, groundingData: context }),
+        body: JSON.stringify({ question: text, history, context, groundingData: context }),
       });
 
       if (!res.ok) throw new Error('Chat request failed');
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No response stream');
+
+      // Add empty assistant message to stream into
+      setChatHistory([...newHistory, { role: 'assistant', content: '' }]);
 
       const decoder = new TextDecoder();
       let accumulated = '';
@@ -108,56 +155,61 @@ export default function PropertyChatTab({ propertyName, analyses, periods }: Pro
         const { done, value } = await reader.read();
         if (done) break;
         accumulated += decoder.decode(value, { stream: true });
-        setMessages(prev => {
+        setChatHistory(prev => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: 'assistant', content: accumulated };
           return updated;
         });
       }
     } catch {
-      setMessages(prev => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: 'assistant', content: 'Something went wrong. Please try again.' };
-        return updated;
-      });
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Something went wrong. Please try again.' },
+      ]);
     } finally {
-      setLoading(false);
-      inputRef.current?.focus();
+      setIsStreaming(false);
     }
   }
 
-  function useSuggested(q: string) {
-    setInput(q);
-    inputRef.current?.focus();
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   }
 
+  const isEmpty = chatHistory.length === 0;
+
   return (
-    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+    <div className="flex flex-col h-full" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+      {/* Clear button */}
+      {!isEmpty && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={() => { setChatHistory([]); setFollowUpSuggestions([]); }}
+            disabled={isStreaming}
+            className="text-xs px-2 py-1 rounded border transition-colors hover:opacity-70"
+            style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+          >
+            Clear chat
+          </button>
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-3 pb-4" style={{ minHeight: 0 }}>
-        {messages.length === 0 ? (
-          <div className="text-center py-10">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--accent)' }}>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-              Ask about {propertyName}
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+        {isEmpty ? (
+          <div className="space-y-4">
+            <p className="text-sm text-center" style={{ color: 'var(--muted)' }}>
+              Ask any question about {propertyName}
             </p>
-            <p className="text-xs mb-5" style={{ color: 'var(--muted)' }}>
-              I have full access to {periods.length} period{periods.length !== 1 ? 's' : ''} of financial data ({periods.join(', ')}).
-            </p>
-            <div className="flex flex-col gap-2 items-center">
-              {SUGGESTED_QUESTIONS.map(q => (
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              {INITIAL_SUGGESTIONS.map((q, i) => (
                 <button
-                  key={q}
-                  onClick={() => useSuggested(q)}
-                  className="text-xs px-4 py-2 rounded-lg border transition-opacity hover:opacity-70 max-w-sm text-left w-full"
-                  style={{ borderColor: 'var(--border)', color: 'var(--muted)', backgroundColor: 'var(--surface)' }}
+                  key={i}
+                  onClick={() => handleSend(q)}
+                  className="text-left p-3 text-xs rounded-lg border transition-colors hover:opacity-80"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)' }}
                 >
                   {q}
                 </button>
@@ -165,66 +217,93 @@ export default function PropertyChatTab({ propertyName, analyses, periods }: Pro
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => {
-            const isUser = msg.role === 'user';
-            const isStreaming = loading && i === messages.length - 1 && !isUser && !msg.content;
-            return (
-              <div key={i} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+          <>
+            {chatHistory.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className="max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed"
+                  className="max-w-[85%] rounded-lg p-3"
                   style={{
-                    backgroundColor: isUser ? 'var(--accent)' : 'var(--surface)',
-                    color: isUser ? 'white' : 'var(--text)',
-                    border: isUser ? 'none' : '1px solid var(--border)',
-                    whiteSpace: 'pre-wrap',
+                    backgroundColor: msg.role === 'user' ? 'var(--accent)' : 'var(--surface)',
+                    color: msg.role === 'user' ? 'white' : 'var(--text)',
+                    border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
                   }}
                 >
-                  {isStreaming ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      {[0, 0.15, 0.3].map((delay, j) => (
-                        <span
-                          key={j}
-                          className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
-                          style={{ backgroundColor: 'var(--muted)', animationDelay: `${delay}s` }}
-                        />
-                      ))}
-                    </span>
-                  ) : msg.content}
+                  {msg.role === 'assistant' ? renderMessage(msg.content) : <p className="text-sm">{msg.content}</p>}
+                  {msg.role === 'assistant' && i === chatHistory.length - 1 && isStreaming && (
+                    <span
+                      className="inline-block w-1 h-4 ml-0.5 animate-pulse"
+                      style={{ backgroundColor: 'var(--accent)', verticalAlign: 'middle' }}
+                    />
+                  )}
                 </div>
               </div>
-            );
-          })
+            ))}
+
+            {isStreaming && chatHistory[chatHistory.length - 1]?.role === 'user' && (
+              <div className="flex justify-start">
+                <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
+                  Thinking...
+                </div>
+              </div>
+            )}
+
+            {/* Contextual follow-up suggestions */}
+            {!isStreaming && (followUpSuggestions.length > 0 || loadingSuggestions) && (
+              <div className="space-y-1.5">
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>You might also ask:</p>
+                {loadingSuggestions ? (
+                  <div className="flex gap-1">
+                    {[80, 60, 70].map((w, i) => (
+                      <div key={i} className="h-7 rounded-full animate-pulse" style={{ width: w + '%', backgroundColor: 'var(--border)' }} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {followUpSuggestions.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSend(s)}
+                        className="text-xs px-3 py-1.5 rounded-full border transition-colors hover:opacity-80"
+                        style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)', color: 'var(--text)' }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
-        <div ref={bottomRef} />
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <form
-        onSubmit={e => { e.preventDefault(); send(); }}
-        className="flex gap-2 pt-3 border-t flex-shrink-0"
-        style={{ borderColor: 'var(--border)' }}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={`Ask about ${propertyName}…`}
-          className="flex-1 input-field text-sm"
-          style={{ backgroundColor: 'var(--bg)', borderColor: 'var(--border)', color: 'var(--text)' }}
-          disabled={loading}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          className="btn-primary px-4 py-2 text-sm flex-shrink-0 disabled:opacity-50"
-        >
-          {loading ? (
-            <span className="inline-block w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
-              style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: 'white' }} />
-          ) : 'Send'}
-        </button>
-      </form>
+      <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex gap-2">
+          <textarea
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about this property's financials..."
+            rows={2}
+            disabled={isStreaming}
+            className="flex-1 input-field text-sm resize-none"
+            style={{ backgroundColor: 'var(--bg)' }}
+          />
+          <button
+            onClick={() => handleSend()}
+            disabled={!input.trim() || isStreaming}
+            className="btn-primary px-4 self-end"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
+        <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Press Enter to send, Shift+Enter for new line</p>
+      </div>
     </div>
   );
 }
