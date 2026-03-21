@@ -106,7 +106,7 @@ function StatTile({ label, value, sub, status }: {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 import type React from 'react';
-import { buildPortfolioBody, downloadPDF } from '@/lib/export/report-html';
+import { downloadPortfolioPDF } from '@/lib/export/report-html';
 
 export default function OverviewTab({
   property,
@@ -179,11 +179,7 @@ export default function OverviewTab({
             </h2>
           </div>
           <button
-            onClick={() => {
-              const filename = `${property.name} - ${periodRange}.pdf`
-                .replace(/[/\\?%*:|"<>]/g, '-');
-              downloadPDF(buildPortfolioBody(property, analyses, periods, summaryText), filename);
-            }}
+            onClick={() => downloadPortfolioPDF(property, analyses, periods, summaryText)}
             className="flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border transition-opacity hover:opacity-70"
             style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
           >
