@@ -359,9 +359,34 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
+  async function refreshProperties() {
+    try {
+      const res = await fetch('/api/properties');
+      if (!res.ok) return;
+      const { properties: updated } = await res.json() as { properties: PropertyEntry[] };
+      setProperties(updated);
+    } catch {}
+  }
+
   async function handleHistoryDelete(id: string) {
     await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
     setHistory(prev => prev.filter(h => h.id !== id));
+
+    // Update the active property view if it references the deleted analysis
+    if (propertyDetail) {
+      const stmtIdx = propertyDetail.statements.findIndex(s => s.analysisId === id);
+      if (stmtIdx !== -1) {
+        const updatedStmts = propertyDetail.statements.filter((_, i) => i !== stmtIdx);
+        const updatedAnalyses = propertyAnalyses.filter((_, i) => i !== stmtIdx);
+        setPropertyDetail(prev => prev ? { ...prev, statements: updatedStmts } : prev);
+        setPropertyAnalyses(updatedAnalyses);
+        setPortfolioCrossYearFlags(detectCrossYearAnomalies(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+        setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+      }
+    }
+
+    // Refresh sidebar counts — the deleted analysis may have belonged to any property
+    refreshProperties();
   }
 
   async function handleHistoryRename(id: string, newName: string) {
@@ -380,6 +405,17 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   async function handleClearHistory() {
     await fetch('/api/history?all=true', { method: 'DELETE' });
     setHistory([]);
+
+    // All analyses are gone — clear the active property view if open
+    if (propertyDetail) {
+      setPropertyDetail(prev => prev ? { ...prev, statements: [] } : prev);
+      setPropertyAnalyses([]);
+      setPortfolioCrossYearFlags([]);
+      setPortfolioKeyMetrics([]);
+    }
+
+    // Refresh sidebar to show 0 statement counts
+    refreshProperties();
   }
 
   async function handleHistorySelect(entry: HistoryEntry) {
