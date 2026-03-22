@@ -760,7 +760,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
             </div>
           ) : (
             <PropertyView
-              property={propertyDetail}
+              property={propertyDetail!}
               analyses={propertyAnalyses}
               crossYearFlags={portfolioCrossYearFlags}
               keyMetrics={portfolioKeyMetrics}
