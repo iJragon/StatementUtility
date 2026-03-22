@@ -77,6 +77,7 @@ export default function PropertyView({
   const [editingPropertyName, setEditingPropertyName] = useState(false);
   const [propertyNameDraft, setPropertyNameDraft] = useState('');
   const [removeStmtConfirmId, setRemoveStmtConfirmId] = useState<string | null>(null);
+  const [chipsExpanded, setChipsExpanded] = useState(false);
 
   // Add modal state
   const [modalTab, setModalTab] = useState<'history' | 'upload'>('history');
@@ -248,7 +249,7 @@ export default function PropertyView({
         {/* Statement chips */}
         {!isEmpty && (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {property.statements.map((stmt, stmtIdx) => {
+            {(chipsExpanded ? property.statements : property.statements.slice(0, 5)).map((stmt, stmtIdx) => {
               const stmtAnalysis = analyses[stmtIdx];
               const noi = stmtAnalysis?.statement.keyFigures['noi']?.annualTotal;
               const noiLabel = fmtNoi(noi);
@@ -326,6 +327,17 @@ export default function PropertyView({
               </div>
             );
             })}
+            {property.statements.length > 5 && (
+              <button
+                onClick={() => setChipsExpanded(v => !v)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors hover:opacity-80"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+              >
+                {chipsExpanded
+                  ? 'Show less'
+                  : `+${property.statements.length - 5} more`}
+              </button>
+            )}
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors hover:opacity-80"
@@ -371,15 +383,12 @@ export default function PropertyView({
           <div className="flex items-stretch" style={{ borderLeft: '1px solid var(--border)' }}>
             <button
               onClick={() => setActiveTab(CHAT_TAB.id)}
-              className="px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors"
               style={{
                 color: activeTab === CHAT_TAB.id ? 'var(--accent)' : 'var(--muted)',
                 borderBottom: activeTab === CHAT_TAB.id ? '2px solid var(--accent)' : '2px solid transparent',
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
               {CHAT_TAB.label}
             </button>
           </div>
