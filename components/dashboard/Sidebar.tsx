@@ -31,6 +31,8 @@ interface SidebarProps {
   onPropertyDelete: (id: string) => void;
   onNavigateHome: () => void;
   onSignOut: () => void;
+  loadingHistoryId?: string | null;
+  loadingPropertyId?: string;
 }
 
 function formatDate(iso: string): string {
@@ -63,6 +65,8 @@ export default function Sidebar({
   onPropertyDelete,
   onNavigateHome,
   onSignOut,
+  loadingHistoryId,
+  loadingPropertyId,
 }: SidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
@@ -296,11 +300,16 @@ export default function Sidebar({
                       }}
                     >
                       <div className="flex items-center gap-1.5">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                          style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
+                        {loadingPropertyId === prop.id ? (
+                          <div className="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin flex-shrink-0"
+                            style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                            style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                          </svg>
+                        )}
                         <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
                           {prop.name}
                         </p>
@@ -587,9 +596,15 @@ export default function Sidebar({
                           onClick={() => onHistorySelect(entry)}
                           className="w-full text-left px-2 py-2 pr-14 rounded-lg transition-colors hover:opacity-80"
                         >
-                          <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
-                            {entry.propertyName || entry.fileName}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            {loadingHistoryId === entry.id && (
+                              <div className="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin flex-shrink-0"
+                                style={{ borderColor: 'var(--border)', borderTopColor: 'var(--accent)' }} />
+                            )}
+                            <p className="text-xs font-medium truncate" style={{ color: 'var(--text)' }}>
+                              {entry.propertyName || entry.fileName}
+                            </p>
+                          </div>
                           <p className="text-xs truncate mt-0.5" style={{ color: 'var(--muted)' }}>
                             {[entry.period, entry.fileName].filter(Boolean).join(' · ')}
                           </p>

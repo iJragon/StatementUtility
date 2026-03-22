@@ -79,6 +79,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   const [portfolioCrossYearFlags, setPortfolioCrossYearFlags] = useState<CrossYearFlag[]>([]);
   const [portfolioKeyMetrics, setPortfolioKeyMetrics] = useState<PortfolioKeyMetric[]>([]);
   const [propertyLoading, setPropertyLoading] = useState(false);
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
 
   // ── Tool state persistence ─────────────────────────────────────────────────
   useEffect(() => {
@@ -419,6 +420,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   async function handleHistorySelect(entry: HistoryEntry) {
+    setLoadingHistoryId(entry.id);
     try {
       const res = await fetch(`/api/history/${entry.id}`);
       if (!res.ok) throw new Error('Failed to load analysis');
@@ -435,6 +437,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       setActivePropertyId(undefined);
     } catch (err) {
       console.error('Failed to load history:', err);
+    } finally {
+      setLoadingHistoryId(null);
     }
   }
 
@@ -741,11 +745,13 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         onPropertyDelete={handlePropertyDelete}
         onNavigateHome={() => { setActiveView('analysis'); setActivePropertyId(undefined); setAnalysis(null); }}
         onSignOut={handleSignOut}
+        loadingHistoryId={loadingHistoryId}
+        loadingPropertyId={propertyLoading ? activePropertyId : undefined}
       />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {activeView === 'property' && propertyDetail ? (
+        {activeView === 'property' && (propertyLoading || propertyDetail) ? (
           // ── Property portfolio view ────────────────────────────────────────
           propertyLoading ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
