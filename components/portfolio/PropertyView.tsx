@@ -26,6 +26,7 @@ interface PropertyViewProps {
   onRenameStatement: (stmtId: string, newLabel: string) => Promise<void>;
   onRenameProperty: (newName: string) => Promise<void>;
   onDeleteProperty: () => void;
+  onOpenAnalysis: (analysisId: string) => void;
 }
 
 const MAIN_TABS = [
@@ -68,6 +69,7 @@ export default function PropertyView({
   onRenameStatement,
   onRenameProperty,
   onDeleteProperty,
+  onOpenAnalysis,
 }: PropertyViewProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -289,7 +291,13 @@ export default function PropertyView({
                     className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs"
                     style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: 'var(--accent)' }}
                   >
-                    <span>{stmt.yearLabel || stmt.period}</span>
+                    <button
+                      onClick={() => onOpenAnalysis(stmt.analysisId)}
+                      className="hover:underline"
+                      title="Open individual analysis"
+                    >
+                      {stmt.yearLabel || stmt.period}
+                    </button>
                     {noiLabel && (
                       <span
                         className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
@@ -482,7 +490,7 @@ export default function PropertyView({
                     borderBottom: modalTab === t ? '2px solid var(--accent)' : '2px solid transparent',
                   }}
                 >
-                  {t === 'history' ? 'From History' : 'Upload New File'}
+                  {t === 'history' ? 'From Analyses' : 'Upload New File'}
                 </button>
               ))}
             </div>

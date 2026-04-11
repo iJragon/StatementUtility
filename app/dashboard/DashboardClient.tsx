@@ -633,6 +633,29 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
   }
 
+  async function handleOpenAnalysisFromProperty(analysisId: string) {
+    setLoadingHistoryId(analysisId);
+    try {
+      const res = await fetch(`/api/history/${analysisId}`);
+      if (!res.ok) throw new Error('Failed to load analysis');
+      const result: AnalysisResult = await res.json();
+      setAnalysis(result);
+      setSummaryText(result.summaryText ?? '');
+      setChatHistory(result.chatHistory ?? []);
+      setActiveTab('summary');
+      setAnomalyExplanations({});
+      setResolvedAnomalies(new Set());
+      setDuplicateNotice('');
+      loadToolsFromStorage(result.fileHash);
+      setActiveView('analysis');
+      setActivePropertyId(undefined);
+    } catch (err) {
+      console.error('Failed to load analysis:', err);
+    } finally {
+      setLoadingHistoryId(null);
+    }
+  }
+
   // Analyze a file for a property context - adds to history automatically
   async function handleAnalyzeFileForProperty(file: File): Promise<AnalysisResult> {
     const formData = new FormData();
@@ -774,6 +797,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               onRenameStatement={handleRenameStatement}
               onRenameProperty={(name) => handlePropertyRename(propertyDetail!.id, name)}
               onDeleteProperty={() => handlePropertyDelete(propertyDetail!.id)}
+              onOpenAnalysis={handleOpenAnalysisFromProperty}
             />
           )
         ) : (
