@@ -576,6 +576,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       setPortfolioSummaryText(property.portfolioSummary ?? '');
       setPortfolioCrossYearFlags(detectCrossYearAnomalies(analyses, property.statements.map(s => s.yearLabel)));
       setPortfolioKeyMetrics(buildPortfolioKeyMetrics(analyses, property.statements.map(s => s.yearLabel)));
+      // Auto-generate narrative on first open if statements exist but no narrative yet
+      if (!property.portfolioSummary && analyses.length > 0) {
+        handlePortfolioGenerateSummary(analyses, property.statements);
+      }
     } catch (err) {
       console.error('Failed to load property:', err);
     } finally {
@@ -583,19 +587,23 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
-  async function handlePortfolioGenerateSummary() {
-    if (!propertyDetail || propertyAnalyses.length === 0) return;
+  async function handlePortfolioGenerateSummary(
+    overrideAnalyses?: AnalysisResult[],
+    overrideStmts?: { yearLabel: string }[],
+  ) {
+    if (!propertyDetail) return;
+    const analyses = overrideAnalyses ?? propertyAnalyses;
+    const yearLabels = (overrideStmts ?? propertyDetail.statements).map(s => s.yearLabel);
+    if (analyses.length === 0) return;
     setPortfolioStreaming(true);
     setPortfolioSummaryText('');
-    const yearLabels = propertyDetail.statements.map(s => s.yearLabel);
     let acc = '';
     try {
       await streamText(
         `/api/properties/${propertyDetail.id}/analyze`,
-        { propertyName: propertyDetail.name, analyses: propertyAnalyses, yearLabels },
+        { propertyName: propertyDetail.name, analyses, yearLabels },
         chunk => { acc += chunk; setPortfolioSummaryText(acc); },
       );
-      // Update local property detail
       setPropertyDetail(prev => prev ? { ...prev, portfolioSummary: acc, portfolioAnalyzedAt: new Date().toISOString() } : prev);
     } finally {
       setPortfolioStreaming(false);
@@ -631,6 +639,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     ));
     setPortfolioCrossYearFlags(detectCrossYearAnomalies(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
     setPortfolioKeyMetrics(buildPortfolioKeyMetrics(updatedAnalyses, updatedStmts.map(s => s.yearLabel)));
+    // Auto-generate property narrative with fresh data (bypasses stale closure)
+    handlePortfolioGenerateSummary(updatedAnalyses, updatedStmts);
   }
 
   async function handleOpenAnalysisFromProperty(analysisId: string) {
@@ -656,7 +666,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
-  // Analyze a file for a property context - adds to history automatically
+  // Analyze a file for a property context - adds to history and auto-generates AI narrative
   async function handleAnalyzeFileForProperty(file: File): Promise<AnalysisResult> {
     const formData = new FormData();
     formData.append('file', file);
@@ -670,7 +680,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     setHistory(prev => {
       if (prev.find(h => h.fileHash === result.fileHash)) return prev;
       const newEntry: HistoryEntry = {
-        id: result.fileHash,
+        id: result.id ?? result.fileHash,
         fileHash: result.fileHash,
         fileName: result.fileName,
         propertyName: result.statement.propertyName,
@@ -679,6 +689,20 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       };
       return [newEntry, ...prev].slice(0, 200);
     });
+    // Auto-generate AI narrative if not already cached
+    if (!result.summaryText) {
+      const context = buildFinancialContext(result.statement, result.ratios, result.anomalies, result.trends);
+      let acc = '';
+      try {
+        await streamText('/api/summary', { context }, chunk => { acc += chunk; });
+        fetch('/api/analyze', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileHash: result.fileHash, summaryText: acc }),
+        }).catch(console.error);
+        result.summaryText = acc;
+      } catch { /* non-critical, narrative can be generated later */ }
+    }
     return result;
   }
 
