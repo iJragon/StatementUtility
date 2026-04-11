@@ -1,19 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 
 export default function SignupPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +36,7 @@ export default function SignupPage() {
         password,
         options: {
           data: { username },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -45,8 +45,7 @@ export default function SignupPage() {
         return;
       }
 
-      router.refresh();
-      router.push('/dashboard');
+      setVerified(true);
     } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
@@ -66,92 +65,122 @@ export default function SignupPage() {
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>AI-powered financial statement analysis</p>
         </div>
 
-        <div className="card">
-          <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--text)' }}>Create your account</h2>
-
-          {error && (
-            <div className="mb-4 p-3 rounded-md text-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
-              {error}
+        {verified ? (
+          <div className="card text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--accent)' }}>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+              </div>
             </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-                className="input-field"
-                placeholder="johndoe"
-                autoComplete="username"
-              />
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>Check your email</h2>
+              <p className="text-sm mt-2" style={{ color: 'var(--muted)' }}>
+                We sent a verification link to <strong style={{ color: 'var(--text)' }}>{email}</strong>.
+                Click the link to activate your account and you&apos;ll be taken straight to the dashboard.
+              </p>
             </div>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              Didn&apos;t receive it? Check your spam folder or{' '}
+              <button
+                onClick={() => setVerified(false)}
+                className="font-medium underline"
+                style={{ color: 'var(--accent)' }}
+              >
+                try again
+              </button>.
+            </p>
+          </div>
+        ) : (
+          <div className="card">
+            <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--text)' }}>Create your account</h2>
 
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="input-field"
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-            </div>
+            {error && (
+              <div className="mb-4 p-3 rounded-md text-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
+                {error}
+              </div>
+            )}
 
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="input-field"
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="johndoe"
+                  autoComplete="username"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-                className="input-field"
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
-            </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full"
-            >
-              {loading ? 'Creating account...' : 'Create account'}
-            </button>
-          </form>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
 
-          <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium" style={{ color: 'var(--accent)' }}>
-              Sign in
-            </Link>
-          </p>
-        </div>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  className="input-field"
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full"
+              >
+                {loading ? 'Creating account...' : 'Create account'}
+              </button>
+            </form>
+
+            <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
+              Already have an account?{' '}
+              <Link href="/login" className="font-medium" style={{ color: 'var(--accent)' }}>
+                Sign in
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
