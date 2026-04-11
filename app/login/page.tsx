@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import ThemeToggle from '@/components/ThemeToggle';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -40,6 +40,67 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="card">
+      <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--text)' }}>Sign in to your account</h2>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-md text-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            className="input-field"
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
+            Password
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+            className="input-field"
+            placeholder="••••••••"
+            autoComplete="current-password"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full"
+        >
+          {loading ? 'Signing in...' : 'Sign in'}
+        </button>
+      </form>
+
+      <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" className="font-medium" style={{ color: 'var(--accent)' }}>
+          Create one
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }}>
       <div className="absolute top-4 right-4">
         <ThemeToggle />
@@ -51,62 +112,9 @@ export default function LoginPage() {
           <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>AI-powered financial statement analysis</p>
         </div>
 
-        <div className="card">
-          <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--text)' }}>Sign in to your account</h2>
-
-          {error && (
-            <div className="mb-4 p-3 rounded-md text-sm" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                className="input-field"
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="input-field"
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="font-medium" style={{ color: 'var(--accent)' }}>
-              Create one
-            </Link>
-          </p>
-        </div>
+        <Suspense fallback={<div className="card" style={{ color: 'var(--muted)' }}>Loading...</div>}>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   );
