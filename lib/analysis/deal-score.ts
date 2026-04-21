@@ -57,6 +57,10 @@ function verdict(total: number): ScoreBreakdown['verdict'] {
 }
 
 export function scoreDeal(m: DealMetrics, profile: InvestorProfile): ScoreBreakdown {
+  // Guard: no meaningful deal data entered yet
+  if (m.totalCashInvested === 0 || m.grossScheduledIncome === 0) {
+    return { cashFlowScore: 0, returnScore: 0, safetyScore: 0, growthScore: 0, total: 0, verdict: 'strong-pass' };
+  }
   const cf = clamp(cashFlowScore(m, profile), 0, 25);
   const ret = clamp(returnScore(m, profile), 0, 25);
   const safety = clamp(safetyScore(m), 0, 25);
