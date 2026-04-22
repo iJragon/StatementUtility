@@ -18,21 +18,21 @@ export async function POST(req: NextRequest) {
   // Fetch the full analysis from history
   const { data, error } = await supabase
     .from('analyses')
-    .select('statement')
+    .select('statement_data')
     .eq('id', analysisId)
     .eq('user_id', user.id)
     .maybeSingle();
 
   // Some projects use file_hash as PK; try both
-  let statement = data?.statement;
+  let statement = data?.statement_data;
   if (!statement) {
     const { data: data2 } = await supabase
       .from('analyses')
-      .select('statement')
+      .select('statement_data')
       .eq('file_hash', analysisId)
       .eq('user_id', user.id)
       .maybeSingle();
-    statement = data2?.statement;
+    statement = data2?.statement_data;
   }
 
   if (error || !statement) {
