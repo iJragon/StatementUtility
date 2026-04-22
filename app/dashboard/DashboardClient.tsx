@@ -859,6 +859,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeView === 'deal' && activeDeal ? (
           <DealView
+            key={activeDeal.id}
             deal={activeDeal}
             onUpdate={handleDealUpdate}
             onDelete={handleDealDelete}

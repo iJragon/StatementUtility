@@ -23,13 +23,13 @@ function fmt(n: number, type: 'dollar' | 'pct' | 'x' | 'int'): string {
 }
 
 const VERDICT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  'strong-buy':  { label: 'Strong Buy',   color: '#15803d', bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.3)'  },
-  'buy':         { label: 'Buy',          color: '#16a34a', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.2)'  },
-  'conditional': { label: 'Conditional',  color: '#b45309', bg: 'rgba(234,179,8,0.12)',  border: 'rgba(234,179,8,0.3)'  },
-  'avoid':       { label: 'Avoid',        color: '#dc2626', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)'  },
-  'strong-avoid':{ label: 'Strong Avoid', color: '#991b1b', bg: 'rgba(239,68,68,0.16)',  border: 'rgba(239,68,68,0.35)' },
-  'pass':        { label: 'Avoid',        color: '#dc2626', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)'  },
-  'strong-pass': { label: 'Strong Avoid', color: '#991b1b', bg: 'rgba(239,68,68,0.16)',  border: 'rgba(239,68,68,0.35)' },
+  'strong-buy':  { label: 'Strong Buy',   color: 'var(--success)', bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.35)'  },
+  'buy':         { label: 'Buy',          color: 'var(--success)', bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.25)'  },
+  'conditional': { label: 'Conditional',  color: 'var(--warning)', bg: 'rgba(234,179,8,0.12)',  border: 'rgba(234,179,8,0.35)'  },
+  'avoid':       { label: 'Avoid',        color: 'var(--danger)',  bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)'  },
+  'strong-avoid':{ label: 'Strong Avoid', color: 'var(--danger)',  bg: 'rgba(239,68,68,0.16)',  border: 'rgba(239,68,68,0.4)'   },
+  'pass':        { label: 'Avoid',        color: 'var(--danger)',  bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)'  },
+  'strong-pass': { label: 'Strong Avoid', color: 'var(--danger)',  bg: 'rgba(239,68,68,0.16)',  border: 'rgba(239,68,68,0.4)'   },
 };
 
 const FALLBACK_VERDICT = VERDICT_CONFIG['avoid'];
