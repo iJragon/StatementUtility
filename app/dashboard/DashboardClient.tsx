@@ -81,6 +81,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   const [compareDeals, setCompareDeals] = useState<Deal[]>([]);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [investorProfile, setInvestorProfile] = useState<InvestorProfile | null>(null);
+  const [profileJustUpdated, setProfileJustUpdated] = useState(false);
 
   // ── Portfolio view state ───────────────────────────────────────────────────
   const [properties, setProperties] = useState<PropertyEntry[]>(initialProperties);
@@ -795,6 +796,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   async function handleDealSelect(entry: DealEntry) {
+    setProfileJustUpdated(false);
     setActiveView('deal');
     setActiveDealId(entry.id);
     try {
@@ -869,6 +871,22 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     if (res.ok) {
       const { profile: saved } = await res.json() as { profile: InvestorProfile };
       setInvestorProfile(saved);
+      // Prompt re-analysis if an analyzed deal is open
+      if (activeDeal?.analysis) {
+        setProfileJustUpdated(true);
+      }
+    }
+  }
+
+  async function handleDealRename(id: string, name: string) {
+    await fetch(`/api/deals/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    setDeals(prev => prev.map(d => d.id === id ? { ...d, name } : d));
+    if (activeDeal?.id === id) {
+      setActiveDeal(prev => prev ? { ...prev, name } : prev);
     }
   }
 
@@ -911,6 +929,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         activeDealId={activeDealId}
         onDealSelect={handleDealSelect}
         onDealCreate={handleDealCreate}
+        onDealDelete={handleDealDelete}
+        onDealRename={handleDealRename}
         onDealCompare={handleShowCompare}
       />
 
@@ -927,16 +947,48 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
             }}
           />
         ) : activeView === 'deal' && activeDeal ? (
-          <DealView
-            key={activeDeal.id}
-            deal={activeDeal}
-            onUpdate={handleDealUpdate}
-            onDelete={handleDealDelete}
-            onShowProfile={handleLoadProfile}
-            onViewInPortfolio={handleViewInPortfolio}
-            history={history}
-            properties={properties}
-          />
+          <>
+            {profileJustUpdated && activeDeal.analysis && (
+              <div
+                className="flex items-center justify-between px-4 py-2.5 gap-3 flex-shrink-0"
+                style={{
+                  backgroundColor: 'rgba(59,130,246,0.07)',
+                  borderBottom: '1px solid rgba(59,130,246,0.2)',
+                }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <p className="text-xs" style={{ color: 'var(--text)' }}>
+                    Your investor profile was updated — re-analyze this deal to apply your new targets.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setProfileJustUpdated(false)}
+                  className="flex-shrink-0 p-1 rounded hover:opacity-60 transition-opacity"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <DealView
+              key={activeDeal.id}
+              deal={activeDeal}
+              onUpdate={handleDealUpdate}
+              onDelete={handleDealDelete}
+              onShowProfile={handleLoadProfile}
+              onViewInPortfolio={handleViewInPortfolio}
+              history={history}
+              properties={properties}
+            />
+          </>
         ) : activeView === 'property' && (propertyLoading || propertyDetail) ? (
           // ── Property portfolio view ────────────────────────────────────────
           propertyLoading ? (
