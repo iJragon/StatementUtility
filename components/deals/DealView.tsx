@@ -29,6 +29,8 @@ const VERDICT_COLORS: Record<string, string> = {
   'conditional': '#b45309',
   'avoid':       '#dc2626',
   'strong-avoid':'#991b1b',
+  'pass':        '#dc2626',
+  'strong-pass': '#991b1b',
 };
 
 export default function DealView({ deal, onUpdate, onDelete }: Props) {

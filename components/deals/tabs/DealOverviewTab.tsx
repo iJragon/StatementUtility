@@ -22,13 +22,17 @@ function fmt(n: number, type: 'dollar' | 'pct' | 'x' | 'int'): string {
   return n.toFixed(0);
 }
 
-const VERDICT_CONFIG: Record<ScoreBreakdown['verdict'], { label: string; color: string; bg: string }> = {
-  'strong-buy': { label: 'Strong Buy', color: '#15803d', bg: '#dcfce7' },
-  'buy':        { label: 'Buy',         color: '#16a34a', bg: '#f0fdf4' },
-  'conditional':{ label: 'Conditional', color: '#b45309', bg: '#fef3c7' },
+const VERDICT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  'strong-buy':  { label: 'Strong Buy',   color: '#15803d', bg: '#dcfce7' },
+  'buy':         { label: 'Buy',          color: '#16a34a', bg: '#f0fdf4' },
+  'conditional': { label: 'Conditional',  color: '#b45309', bg: '#fef3c7' },
   'avoid':       { label: 'Avoid',        color: '#dc2626', bg: '#fee2e2' },
   'strong-avoid':{ label: 'Strong Avoid', color: '#991b1b', bg: '#fecaca' },
+  'pass':        { label: 'Avoid',        color: '#dc2626', bg: '#fee2e2' },
+  'strong-pass': { label: 'Strong Avoid', color: '#991b1b', bg: '#fecaca' },
 };
+
+const FALLBACK_VERDICT = VERDICT_CONFIG['avoid'];
 
 function MetricRow({ label, value, good }: { label: string; value: string; good?: boolean | null }) {
   return (
@@ -64,7 +68,7 @@ function ScoreBar({ label, score, max = 25 }: { label: string; score: number; ma
 }
 
 export default function DealOverviewTab({ metrics: m, score, inputs }: Props) {
-  const verdict = VERDICT_CONFIG[score.verdict];
+  const verdict = VERDICT_CONFIG[score.verdict] ?? FALLBACK_VERDICT;
   const totalInvested = m.totalCashInvested;
 
   return (
