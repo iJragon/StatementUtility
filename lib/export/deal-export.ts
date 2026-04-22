@@ -239,19 +239,18 @@ export function exportDealToExcel(deal: Deal): Buffer {
 
 // ── PDF Export ────────────────────────────────────────────────────────────────
 
-// pdfmake imports (server-side only)
+// pdfmake 0.3.x server-side API: singleton + addFonts + createPdf().getBuffer()
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const PdfPrinter = require('pdfmake/src/printer');
-
-// Helvetica is available as a built-in font in pdfmake's server printer
-const FONTS = {
+const pdfmakeInstance = require('pdfmake');
+// Register standard PDF core fonts — no binary files needed
+pdfmakeInstance.addFonts({
   Helvetica: {
     normal:      'Helvetica',
     bold:        'Helvetica-Bold',
     italics:     'Helvetica-Oblique',
     bolditalics: 'Helvetica-BoldOblique',
   },
-};
+});
 
 const BRAND = '#2563eb';
 const MUTED  = '#64748b';
@@ -495,14 +494,5 @@ export async function exportDealToPDF(deal: Deal): Promise<Buffer> {
     ],
   };
 
-  const printer = new PdfPrinter(FONTS);
-  const doc = printer.createPdfKitDocument(docDef);
-
-  return new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-    doc.end();
-  });
+  return pdfmakeInstance.createPdf(docDef).getBuffer() as Promise<Buffer>;
 }
