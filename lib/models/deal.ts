@@ -208,6 +208,7 @@ export interface Deal extends DealEntry {
   aiNarrative?: string;
   aiAnalyzedAt?: string;
   propertyId?: string;
+  notes?: string;
 }
 
 // ── Default Values ──────────────────────────────────────────────────────────

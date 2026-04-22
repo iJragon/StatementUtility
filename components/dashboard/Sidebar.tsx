@@ -39,6 +39,7 @@ interface SidebarProps {
   activeDealId?: string;
   onDealSelect: (deal: DealEntry) => void;
   onDealCreate: (name: string, address?: string) => Promise<void>;
+  onDealCompare?: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -77,6 +78,7 @@ export default function Sidebar({
   activeDealId,
   onDealSelect,
   onDealCreate,
+  onDealCompare,
 }: SidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
@@ -435,18 +437,30 @@ export default function Sidebar({
                 </span>
               )}
             </p>
-            <button
-              onClick={() => setShowNewDeal(v => !v)}
-              className="text-xs hover:opacity-80 transition-opacity flex items-center gap-1"
-              style={{ color: 'var(--accent)' }}
-              title="New deal"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              New
-            </button>
+            <div className="flex items-center gap-2">
+              {deals.length >= 2 && onDealCompare && (
+                <button
+                  onClick={onDealCompare}
+                  className="text-xs hover:opacity-80 transition-opacity"
+                  style={{ color: 'var(--muted)' }}
+                  title="Compare deals"
+                >
+                  Compare
+                </button>
+              )}
+              <button
+                onClick={() => setShowNewDeal(v => !v)}
+                className="text-xs hover:opacity-80 transition-opacity flex items-center gap-1"
+                style={{ color: 'var(--accent)' }}
+                title="New deal"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New
+              </button>
+            </div>
           </div>
 
           {showNewDeal && (
@@ -503,10 +517,11 @@ export default function Sidebar({
             <div className="space-y-1">
               {deals.map(deal => {
                 const isActive = activeDealId === deal.id;
-                const verdictColors: Record<string, string> = {
-                  'strong-buy': '#15803d', 'buy': '#16a34a',
-                  'conditional': '#b45309', 'pass': '#dc2626', 'strong-pass': '#991b1b',
+                const statusColors: Record<string, string> = {
+                  draft: 'var(--muted)', analyzed: 'var(--accent)',
+                  passed: 'var(--warning)', converted: 'var(--success)',
                 };
+                const statusColor = statusColors[deal.status] ?? 'var(--muted)';
                 return (
                   <button
                     key={deal.id}
@@ -518,28 +533,22 @@ export default function Sidebar({
                     }}
                   >
                     <div className="flex items-center gap-1.5">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                        style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                      </svg>
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
                       <p className="text-xs font-medium truncate flex-1" style={{ color: 'var(--text)' }}>
                         {deal.name}
                       </p>
                       {deal.dealScore !== null && deal.dealScore !== undefined && (
                         <span
                           className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent)', fontSize: '10px' }}
+                          style={{ backgroundColor: `${statusColor}18`, color: statusColor, fontSize: '10px' }}
                         >
                           {deal.dealScore}
                         </span>
                       )}
                     </div>
                     {deal.address && (
-                      <p className="text-xs ml-[19px] truncate" style={{ color: 'var(--muted)' }}>{deal.address}</p>
+                      <p className="text-xs ml-[15px] truncate" style={{ color: 'var(--muted)' }}>{deal.address}</p>
                     )}
-                    <p className="text-xs ml-[19px]" style={{ color: 'var(--muted)', opacity: 0.7 }}>
-                      {deal.status}
-                    </p>
                   </button>
                 );
               })}

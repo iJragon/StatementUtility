@@ -9,7 +9,7 @@ import type { AnalysisResult } from '@/lib/models/statement';
 import type { ChatMessage } from '@/lib/agents/chat-agent';
 import type { ChartSpec } from '@/lib/agents/viz-agent';
 import type { PropertyEntry, PropertyDetail, PropertyStatement, CrossYearFlag, PortfolioKeyMetric } from '@/lib/models/portfolio';
-import type { Deal, DealEntry } from '@/lib/models/deal';
+import type { Deal, DealEntry, InvestorProfile } from '@/lib/models/deal';
 import type { HistoryEntry } from './page';
 import Sidebar from '@/components/dashboard/Sidebar';
 import SummaryTab from '@/components/dashboard/tabs/SummaryTab';
@@ -24,6 +24,8 @@ import CustomChartsTab from '@/components/dashboard/tabs/CustomChartsTab';
 import BenchmarksTab from '@/components/dashboard/tabs/BenchmarksTab';
 import PropertyView from '@/components/portfolio/PropertyView';
 import DealView from '@/components/deals/DealView';
+import DealCompareView from '@/components/deals/DealCompareView';
+import InvestorProfilePanel from '@/components/deals/InvestorProfilePanel';
 
 interface DashboardClientProps {
   userEmail: string;
@@ -75,6 +77,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   const [deals, setDeals] = useState<DealEntry[]>(initialDeals);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
   const [activeDealId, setActiveDealId] = useState<string | undefined>();
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareDeals, setCompareDeals] = useState<Deal[]>([]);
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [investorProfile, setInvestorProfile] = useState<InvestorProfile | null>(null);
 
   // ── Portfolio view state ───────────────────────────────────────────────────
   const [properties, setProperties] = useState<PropertyEntry[]>(initialProperties);
@@ -822,6 +828,58 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     }
   }
 
+  async function handleShowCompare() {
+    // Load full Deal objects for all deals that have been analyzed
+    const analyzed = deals.filter(d => d.status !== 'draft' || d.dealScore !== undefined);
+    const toLoad = analyzed.slice(0, 6); // cap at 6 for readability
+    const loaded: Deal[] = [];
+    await Promise.all(toLoad.map(async entry => {
+      try {
+        const res = await fetch(`/api/deals/${entry.id}`);
+        if (!res.ok) return;
+        const { deal } = await res.json() as { deal: Deal };
+        loaded.push(deal);
+      } catch { /* skip */ }
+    }));
+    // Sort to match sidebar order
+    const ordered = toLoad.map(e => loaded.find(d => d.id === e.id)).filter((d): d is Deal => !!d);
+    setCompareDeals(ordered);
+    setShowCompare(true);
+  }
+
+  async function handleLoadProfile() {
+    if (investorProfile) { setShowProfilePanel(true); return; }
+    try {
+      const res = await fetch('/api/investor-profile');
+      if (!res.ok) return;
+      const { profile } = await res.json() as { profile: InvestorProfile | null };
+      const { DEFAULT_INVESTOR_PROFILE } = await import('@/lib/models/deal');
+      setInvestorProfile(profile ?? DEFAULT_INVESTOR_PROFILE);
+    } catch { /* use defaults */ } finally {
+      setShowProfilePanel(true);
+    }
+  }
+
+  async function handleSaveProfile(profile: InvestorProfile) {
+    const res = await fetch('/api/investor-profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    });
+    if (res.ok) {
+      const { profile: saved } = await res.json() as { profile: InvestorProfile };
+      setInvestorProfile(saved);
+    }
+  }
+
+  function handleViewInPortfolio(propertyId: string) {
+    const prop = properties.find(p => p.id === propertyId);
+    if (prop) {
+      setShowCompare(false);
+      handlePropertySelect(prop);
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--bg)' }}>
@@ -853,17 +911,31 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         activeDealId={activeDealId}
         onDealSelect={handleDealSelect}
         onDealCreate={handleDealCreate}
+        onDealCompare={handleShowCompare}
       />
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {activeView === 'deal' && activeDeal ? (
+        {showCompare ? (
+          <DealCompareView
+            deals={compareDeals}
+            onClose={() => setShowCompare(false)}
+            onSelectDeal={deal => {
+              setShowCompare(false);
+              const entry = deals.find(d => d.id === deal.id);
+              if (entry) handleDealSelect(entry);
+            }}
+          />
+        ) : activeView === 'deal' && activeDeal ? (
           <DealView
             key={activeDeal.id}
             deal={activeDeal}
             onUpdate={handleDealUpdate}
             onDelete={handleDealDelete}
+            onShowProfile={handleLoadProfile}
+            onViewInPortfolio={handleViewInPortfolio}
             history={history}
+            properties={properties}
           />
         ) : activeView === 'property' && (propertyLoading || propertyDetail) ? (
           // ── Property portfolio view ────────────────────────────────────────
@@ -1107,6 +1179,15 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
             </div>
           </div>
         </div>
+      )}
+
+      {/* Investor Profile Panel */}
+      {showProfilePanel && investorProfile && (
+        <InvestorProfilePanel
+          profile={investorProfile}
+          onSave={handleSaveProfile}
+          onClose={() => setShowProfilePanel(false)}
+        />
       )}
     </div>
   );

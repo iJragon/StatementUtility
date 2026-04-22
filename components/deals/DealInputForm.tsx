@@ -161,35 +161,29 @@ interface T12ModalProps {
 function T12ImportModal({ history, onImport, onClose }: T12ModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [importNote, setImportNote] = useState('');
 
   async function handleSelect(entry: HistoryEntry) {
     setLoading(true);
     setError('');
+    setImportNote('');
     try {
-      const res = await fetch(`/api/history/${entry.id}`);
-      if (!res.ok) throw new Error('Failed to load analysis');
-      const result = await res.json();
-      const kf = result?.statement?.keyFigures ?? {};
-
-      const prefill: Partial<DealInputs> = {
-        grossScheduledIncome: kf['gross_potential_rent']?.annualTotal ?? 0,
-        expenses: {
-          propertyTaxes:  kf['real_estate_taxes']?.annualTotal ?? 0,
-          insurance:      kf['insurance']?.annualTotal ?? 0,
-          utilities:      kf['utilities']?.annualTotal ?? 0,
-          payroll:        kf['total_payroll']?.annualTotal ?? 0,
-          managementFee:  kf['management_fees']?.annualTotal ?? 0,
-          maintenance: 0,
-          landscaping: 0,
-          janitorial: 0,
-          marketing: 0,
-          administrative: 0,
-          reserves: 0,
-          miscellaneous: 0,
-        },
+      // Use the AI-powered generic import — reads all rows, not just named keyFigures
+      const res = await fetch('/api/deals/t12-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysisId: entry.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Import failed');
+      }
+      const { inputs, importNotes } = await res.json() as {
+        inputs: Partial<DealInputs>;
+        importNotes: string;
       };
-
-      onImport(prefill);
+      if (importNotes) setImportNote(importNotes);
+      onImport(inputs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -219,12 +213,17 @@ function T12ImportModal({ history, onImport, onClose }: T12ModalProps) {
         </div>
 
         <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
-          Select an analyzed T12 statement to prefill income and expense fields.
+          AI reads every row — works with any statement format, any layout.
         </p>
 
         {error && (
           <p className="text-xs mb-2 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
             {error}
+          </p>
+        )}
+        {importNote && (
+          <p className="text-xs mb-2 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(37,99,235,0.06)', color: 'var(--muted)', border: '1px solid rgba(37,99,235,0.15)' }}>
+            {importNote}
           </p>
         )}
 
@@ -262,7 +261,7 @@ function T12ImportModal({ history, onImport, onClose }: T12ModalProps) {
             <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 12a9 9 0 11-6.219-8.56" />
             </svg>
-            Loading analysis…
+            AI reading statement rows…
           </div>
         )}
       </div>

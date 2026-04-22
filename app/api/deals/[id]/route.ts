@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       aiNarrative: data.ai_narrative,
       aiAnalyzedAt: data.ai_analyzed_at,
       propertyId: data.property_id,
+      notes: data.notes ?? '',
       createdAt: data.created_at,
       dealScore: data.analysis?.score?.total ?? null,
     },
@@ -49,6 +50,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     address?: string;
     status?: string;
     inputs?: DealInputs;
+    notes?: string;
+    propertyId?: string | null;
   };
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -56,6 +59,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (body.address !== undefined) patch.address = body.address.trim() || null;
   if (body.status !== undefined) patch.status = body.status;
   if (body.inputs !== undefined) patch.inputs = body.inputs;
+  if (body.notes !== undefined) patch.notes = body.notes;
+  if ('propertyId' in body) patch.property_id = body.propertyId ?? null;
 
   const { data, error } = await supabase
     .from('deals')
