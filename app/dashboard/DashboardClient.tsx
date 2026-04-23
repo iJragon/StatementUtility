@@ -27,6 +27,7 @@ import DealView from '@/components/deals/DealView';
 import DealCompareView from '@/components/deals/DealCompareView';
 import InvestorProfilePanel from '@/components/deals/InvestorProfilePanel';
 import NetworkAnimation from '@/components/dashboard/NetworkAnimation';
+import { useTheme } from 'next-themes';
 
 interface DashboardClientProps {
   userEmail: string;
@@ -53,6 +54,7 @@ const TOOL_TABS = [
 
 export default function DashboardClient({ userEmail, initialHistory, initialProperties, initialDeals }: DashboardClientProps) {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
 
   // ── Analysis view state ────────────────────────────────────────────────────
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -1142,43 +1144,48 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                   </div>
 
                   {/* Content overlay */}
-                  <div className="relative z-10 flex flex-col items-center gap-8 text-center px-8 py-12">
-                    <div>
-                      <h2
-                        className="text-3xl font-bold mb-3 tracking-tight"
-                        style={{ color: '#e8f4ff', textShadow: '0 0 40px rgba(0,150,220,0.4)' }}
-                      >
-                        Estatelytics
-                      </h2>
-                      <p className="max-w-sm text-sm leading-relaxed" style={{ color: 'rgba(180,210,240,0.75)' }}>
-                        Upload an Excel or CSV file to get started — ratio analysis, AI insights,
-                        trend detection, and anomaly alerts in seconds.
-                      </p>
-                    </div>
+                  <div className="relative z-10 flex flex-col items-center gap-5 text-center px-8 py-12">
+                    <p
+                      className="text-xs font-semibold uppercase tracking-[0.25em]"
+                      style={{
+                        color: resolvedTheme === 'light' ? 'rgba(30,80,140,0.65)' : 'rgba(140,200,255,0.55)',
+                        letterSpacing: '0.25em',
+                      }}
+                    >
+                      Real Estate Intelligence
+                    </p>
 
-                    <div className="grid grid-cols-3 gap-3 max-w-md">
-                      {[
-                        'Financial Ratios',
-                        'AI Insights',
-                        'Trend Analysis',
-                        'Anomaly Detection',
-                        'Chat Interface',
-                        'Property Portfolio',
-                      ].map(f => (
-                        <div
-                          key={f}
-                          className="px-3 py-2 rounded-lg text-xs font-medium"
-                          style={{
-                            backgroundColor: 'rgba(0,150,220,0.08)',
-                            border: '1px solid rgba(0,150,220,0.18)',
-                            color: 'rgba(160,220,255,0.8)',
-                            backdropFilter: 'blur(8px)',
-                          }}
-                        >
-                          {f}
-                        </div>
-                      ))}
-                    </div>
+                    <h1
+                      className="font-black uppercase"
+                      style={{
+                        fontSize: 'clamp(2.4rem, 6vw, 4.5rem)',
+                        letterSpacing: '0.18em',
+                        lineHeight: 1,
+                        color: resolvedTheme === 'light' ? '#0f2744' : '#e8f4ff',
+                        textShadow: resolvedTheme === 'light'
+                          ? 'none'
+                          : '0 0 60px rgba(0,160,255,0.35), 0 0 120px rgba(0,100,200,0.2)',
+                      }}
+                    >
+                      ESTATELYTICS
+                    </h1>
+
+                    <p
+                      className="text-sm leading-relaxed max-w-xs"
+                      style={{
+                        color: resolvedTheme === 'light' ? 'rgba(20,60,110,0.6)' : 'rgba(180,210,240,0.65)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      Underwrite deals. Analyze properties. Decide with confidence.
+                    </p>
+
+                    <p
+                      className="text-xs mt-2"
+                      style={{ color: resolvedTheme === 'light' ? 'rgba(30,80,140,0.45)' : 'rgba(140,190,240,0.4)' }}
+                    >
+                      Upload a file or open a deal from the sidebar to begin.
+                    </p>
                   </div>
                 </div>
               )}
