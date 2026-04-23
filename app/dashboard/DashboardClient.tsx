@@ -1144,12 +1144,25 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                   </div>
 
                   {/* Content overlay */}
-                  <div className="relative z-10 flex flex-col items-center gap-5 text-center px-8 py-12">
+                  <div
+                    className="relative z-10 flex flex-col items-center gap-5 text-center px-10 py-10 rounded-2xl"
+                    style={{
+                      backdropFilter: 'blur(22px)',
+                      WebkitBackdropFilter: 'blur(22px)',
+                      backgroundColor: resolvedTheme === 'light'
+                        ? 'rgba(240,248,255,0.55)'
+                        : 'rgba(4,10,28,0.52)',
+                      border: '1px solid',
+                      borderColor: resolvedTheme === 'light'
+                        ? 'rgba(60,110,200,0.18)'
+                        : 'rgba(40,100,220,0.22)',
+                    }}
+                  >
                     <p
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
+                      className="text-xs font-semibold uppercase"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(30,80,140,0.65)' : 'rgba(140,200,255,0.55)',
-                        letterSpacing: '0.25em',
+                        color: resolvedTheme === 'light' ? 'rgba(20,65,140,0.75)' : 'rgba(140,200,255,0.75)',
+                        letterSpacing: '0.28em',
                       }}
                     >
                       Real Estate Intelligence
@@ -1161,10 +1174,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                         fontSize: 'clamp(2.4rem, 6vw, 4.5rem)',
                         letterSpacing: '0.18em',
                         lineHeight: 1,
-                        color: resolvedTheme === 'light' ? '#0f2744' : '#e8f4ff',
+                        color: resolvedTheme === 'light' ? '#0c2040' : '#e8f4ff',
                         textShadow: resolvedTheme === 'light'
                           ? 'none'
-                          : '0 0 60px rgba(0,160,255,0.35), 0 0 120px rgba(0,100,200,0.2)',
+                          : '0 0 60px rgba(0,160,255,0.4), 0 0 120px rgba(0,100,200,0.22)',
                       }}
                     >
                       ESTATELYTICS
@@ -1173,18 +1186,11 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <p
                       className="text-sm leading-relaxed max-w-xs"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(20,60,110,0.6)' : 'rgba(180,210,240,0.65)',
+                        color: resolvedTheme === 'light' ? 'rgba(14,48,108,0.78)' : 'rgba(195,222,255,0.82)',
                         letterSpacing: '0.02em',
                       }}
                     >
                       Underwrite deals. Analyze properties. Decide with confidence.
-                    </p>
-
-                    <p
-                      className="text-xs mt-2"
-                      style={{ color: resolvedTheme === 'light' ? 'rgba(30,80,140,0.45)' : 'rgba(140,190,240,0.4)' }}
-                    >
-                      Upload a file or open a deal from the sidebar to begin.
                     </p>
                   </div>
                 </div>
