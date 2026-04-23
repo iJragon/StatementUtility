@@ -7,6 +7,11 @@ import * as XLSX from 'xlsx';
 import * as pdfParseModule from 'pdf-parse';
 const pdfParse = (pdfParseModule as unknown as { default: (buf: Buffer) => Promise<{ text: string }> }).default ?? (pdfParseModule as unknown as (buf: Buffer) => Promise<{ text: string }>);
 
+// Raise Next.js's internal body size limit for this route (default is 1 MB)
+export const config = {
+  api: { bodyParser: { sizeLimit: '10mb' } },
+};
+
 // POST /api/deals/file-import
 // Accepts Excel, CSV, or PDF (OMs, pro formas, rent rolls) and uses AI to extract
 // deal underwriting inputs. Any field the AI cannot confidently extract is omitted.

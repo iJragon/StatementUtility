@@ -284,14 +284,22 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
-    setLoading(true);
     setError('');
     setImportNote('');
+
+    const LIMIT_MB = 4;
+    if (file.size > LIMIT_MB * 1024 * 1024) {
+      setError(`File is ${(file.size / 1024 / 1024).toFixed(1)} MB — max is ${LIMIT_MB} MB. For large PDFs, try compressing it or splitting out the financial pages.`);
+      return;
+    }
+
+    setLoading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
       const res = await fetch('/api/deals/file-import', { method: 'POST', body: formData });
       if (!res.ok) {
+        if (res.status === 413) throw new Error('File too large for the server. Try a smaller or compressed PDF.');
         const err = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'Import failed');
       }
