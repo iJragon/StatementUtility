@@ -4,8 +4,8 @@ import { getGroqClient, DEFAULT_MODEL } from '@/lib/agents/base';
 import type { DealInputs } from '@/lib/models/deal';
 import { DEFAULT_DEAL_INPUTS } from '@/lib/models/deal';
 import * as XLSX from 'xlsx';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buf: Buffer) => Promise<{ text: string }>;
+import * as pdfParseModule from 'pdf-parse';
+const pdfParse = (pdfParseModule as unknown as { default: (buf: Buffer) => Promise<{ text: string }> }).default ?? (pdfParseModule as unknown as (buf: Buffer) => Promise<{ text: string }>);
 
 // POST /api/deals/file-import
 // Accepts Excel, CSV, or PDF (OMs, pro formas, rent rolls) and uses AI to extract
