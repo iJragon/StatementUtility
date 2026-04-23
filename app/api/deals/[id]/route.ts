@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       aiNarrative: data.ai_narrative,
       aiAnalyzedAt: data.ai_analyzed_at,
       propertyId: data.property_id,
+      profileSnapshot: data.profile_snapshot ?? undefined,
       notes: data.notes ?? '',
       createdAt: data.created_at,
       dealScore: data.analysis?.score?.total ?? null,

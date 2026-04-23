@@ -209,6 +209,7 @@ export interface Deal extends DealEntry {
   aiAnalyzedAt?: string;
   propertyId?: string;
   notes?: string;
+  profileSnapshot?: InvestorProfile; // profile values used when deal was last analyzed
 }
 
 // ── Default Values ──────────────────────────────────────────────────────────

@@ -81,7 +81,6 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   const [compareDeals, setCompareDeals] = useState<Deal[]>([]);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [investorProfile, setInvestorProfile] = useState<InvestorProfile | null>(null);
-  const [profileUpdatedAt, setProfileUpdatedAt] = useState<string | null>(null);
 
   // ── Portfolio view state ───────────────────────────────────────────────────
   const [properties, setProperties] = useState<PropertyEntry[]>(initialProperties);
@@ -849,15 +848,30 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
     setShowCompare(true);
   }
 
+  // Eagerly load the investor profile whenever a deal is opened so the
+  // profile-staleness banner can compare values without waiting for the user
+  // to manually open the profile panel.
+  useEffect(() => {
+    if (activeDeal && !investorProfile) {
+      fetch('/api/investor-profile')
+        .then(r => r.ok ? r.json() : null)
+        .then(async (data: { profile: InvestorProfile | null } | null) => {
+          if (!data) return;
+          const { DEFAULT_INVESTOR_PROFILE } = await import('@/lib/models/deal');
+          setInvestorProfile(data.profile ?? DEFAULT_INVESTOR_PROFILE);
+        })
+        .catch(() => {});
+    }
+  }, [activeDeal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleLoadProfile() {
     if (investorProfile) { setShowProfilePanel(true); return; }
     try {
       const res = await fetch('/api/investor-profile');
       if (!res.ok) return;
-      const { profile, profileUpdatedAt: updatedAt } = await res.json() as { profile: InvestorProfile | null; profileUpdatedAt: string | null };
+      const { profile } = await res.json() as { profile: InvestorProfile | null };
       const { DEFAULT_INVESTOR_PROFILE } = await import('@/lib/models/deal');
       setInvestorProfile(profile ?? DEFAULT_INVESTOR_PROFILE);
-      if (updatedAt) setProfileUpdatedAt(updatedAt);
     } catch { /* use defaults */ } finally {
       setShowProfilePanel(true);
     }
@@ -870,9 +884,8 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
       body: JSON.stringify(profile),
     });
     if (res.ok) {
-      const { profile: saved, profileUpdatedAt: updatedAt } = await res.json() as { profile: InvestorProfile; profileUpdatedAt: string };
+      const { profile: saved } = await res.json() as { profile: InvestorProfile };
       setInvestorProfile(saved);
-      if (updatedAt) setProfileUpdatedAt(updatedAt);
     }
   }
 
@@ -945,30 +958,59 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
           />
         ) : activeView === 'deal' && activeDeal ? (
           <>
-            {activeDeal.analysis && profileUpdatedAt && activeDeal.aiAnalyzedAt && profileUpdatedAt > activeDeal.aiAnalyzedAt && (
-              <div
-                className="flex items-center px-4 py-3 gap-3 flex-shrink-0"
-                style={{
-                  backgroundColor: 'rgba(245,158,11,0.13)',
-                  borderBottom: '3px solid rgba(245,158,11,0.5)',
-                  borderLeft: '4px solid var(--warning)',
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" style={{ flexShrink: 0 }}>
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--warning)' }}>
-                    Investor profile updated
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text)', opacity: 0.8 }}>
-                    This analysis used your old targets. Hit Re-Analyze to apply your current profile.
-                  </p>
+            {(() => {
+              const snap = activeDeal.profileSnapshot;
+              const cur  = investorProfile;
+              if (!activeDeal.analysis || !snap || !cur) return null;
+
+              // Compute which fields changed since this deal was last analyzed
+              const diffs: { label: string; old: string; now: string }[] = [];
+              if (Math.abs(snap.targetCashOnCash - cur.targetCashOnCash) > 0.0001)
+                diffs.push({ label: 'CoC target', old: `${(snap.targetCashOnCash * 100).toFixed(1)}%`, now: `${(cur.targetCashOnCash * 100).toFixed(1)}%` });
+              if (Math.abs(snap.targetIRR - cur.targetIRR) > 0.0001)
+                diffs.push({ label: 'IRR target', old: `${(snap.targetIRR * 100).toFixed(1)}%`, now: `${(cur.targetIRR * 100).toFixed(1)}%` });
+              if (snap.holdPeriod !== cur.holdPeriod)
+                diffs.push({ label: 'Hold period', old: `${snap.holdPeriod} yr`, now: `${cur.holdPeriod} yr` });
+              if (Math.abs(snap.taxBracket - cur.taxBracket) > 0.0001)
+                diffs.push({ label: 'Tax bracket', old: `${(snap.taxBracket * 100).toFixed(0)}%`, now: `${(cur.taxBracket * 100).toFixed(0)}%` });
+              if (snap.riskTolerance !== cur.riskTolerance)
+                diffs.push({ label: 'Risk', old: snap.riskTolerance, now: cur.riskTolerance });
+              if (diffs.length === 0) return null;
+
+              return (
+                <div
+                  className="px-4 py-3 flex-shrink-0"
+                  style={{
+                    backgroundColor: 'rgba(245,158,11,0.10)',
+                    borderBottom: '1px solid rgba(245,158,11,0.35)',
+                    borderLeft: '4px solid var(--warning)',
+                  }}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold" style={{ color: 'var(--warning)' }}>
+                        Profile changed since last analysis — scores may not reflect your current targets
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5">
+                        {diffs.map(d => (
+                          <span key={d.label} className="text-xs" style={{ color: 'var(--muted)' }}>
+                            <span style={{ color: 'var(--text)' }}>{d.label}:</span>{' '}
+                            <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{d.old}</span>
+                            {' → '}
+                            <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{d.now}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
             <DealView
               key={activeDeal.id}
               deal={activeDeal}

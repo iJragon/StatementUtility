@@ -57,12 +57,13 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
 
   const analysis = { metrics, proForma, sensitivity, score, monteCarlo };
 
-  // Persist computed analysis immediately (before streaming narrative)
+  // Persist computed analysis + the profile snapshot used for scoring
   await supabase
     .from('deals')
     .update({
       analysis,
       status: 'analyzed',
+      profile_snapshot: profile,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
