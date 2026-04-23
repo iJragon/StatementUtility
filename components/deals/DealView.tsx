@@ -211,6 +211,7 @@ export default function DealView({
         </div>
         <div className="flex-1 overflow-hidden">
           <DealInputForm
+            dealId={deal.id}
             initialInputs={deal.inputs}
             onSave={handleSaveInputs}
             onCancel={() => setEditingInputs(false)}

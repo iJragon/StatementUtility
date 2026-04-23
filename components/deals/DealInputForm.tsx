@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { DealInputs, OperatingExpenseBreakdown, ValidationWarning } from '@/lib/models/deal';
 import { DEFAULT_DEAL_INPUTS } from '@/lib/models/deal';
 import { validateDealInputs } from '@/lib/analysis/deal-validation';
 import type { HistoryEntry } from '@/app/dashboard/page';
 
 interface Props {
+  dealId: string;
   initialInputs?: DealInputs;
   onSave: (inputs: DealInputs) => void;
   onCancel: () => void;
@@ -380,11 +381,61 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function DealInputForm({ initialInputs, onSave, onCancel, saving, history }: Props) {
+export default function DealInputForm({ dealId, initialInputs, onSave, onCancel, saving, history }: Props) {
   const [step, setStep] = useState<Step>('property');
   const [inputs, setInputs] = useState<DealInputs>(initialInputs ?? DEFAULT_DEAL_INPUTS);
   const [showT12Modal, setShowT12Modal] = useState(false);
   const [showFileImportModal, setShowFileImportModal] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const timerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRef      = useRef(inputs);
+  const lastSavedRef   = useRef(JSON.stringify(initialInputs ?? DEFAULT_DEAL_INPUTS));
+  const didMountRef    = useRef(false);
+
+  // Keep latestRef current so the unmount cleanup can read it
+  useEffect(() => { latestRef.current = inputs; }, [inputs]);
+
+  const draftSave = useCallback(async (current: DealInputs) => {
+    const json = JSON.stringify(current);
+    if (json === lastSavedRef.current) return;
+    setDraftSaveState('saving');
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: current }),
+      });
+      if (!res.ok) throw new Error();
+      lastSavedRef.current = json;
+      setDraftSaveState('saved');
+      setTimeout(() => setDraftSaveState('idle'), 2000);
+    } catch {
+      setDraftSaveState('error');
+    }
+  }, [dealId]);
+
+  // Debounce auto-save 1.5s after any input change
+  useEffect(() => {
+    if (!didMountRef.current) { didMountRef.current = true; return; }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => draftSave(inputs), 1500);
+  }, [inputs, draftSave]);
+
+  // Save immediately when navigating away (unmount)
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      const json = JSON.stringify(latestRef.current);
+      if (json !== lastSavedRef.current) {
+        fetch(`/api/deals/${dealId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs: latestRef.current }),
+        });
+      }
+    };
+  }, [dealId]);
 
   const warnings = validateDealInputs(inputs);
   const stepWarnings = warnings.filter(w => w.step === step);
@@ -681,13 +732,26 @@ export default function DealInputForm({ initialInputs, onSave, onCancel, saving,
 
       {/* Navigation */}
       <div className="flex items-center justify-between p-4 border-t" style={{ borderColor: 'var(--border)' }}>
-        <button
-          onClick={isFirst ? onCancel : () => setStep(STEPS[stepIndex - 1].key)}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={isFirst ? onCancel : () => setStep(STEPS[stepIndex - 1].key)}
           className="px-4 py-2 text-sm rounded"
           style={{ border: '1px solid var(--border)', color: 'var(--text)', backgroundColor: 'var(--surface)' }}
         >
-          {isFirst ? 'Cancel' : '← Back'}
-        </button>
+            {isFirst ? 'Cancel' : '← Back'}
+          </button>
+
+          {draftSaveState === 'saving' && (
+            <span className="text-xs flex items-center gap-1" style={{ color: 'var(--muted)' }}>
+              <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 11-6.219-8.56" />
+              </svg>
+              Saving…
+            </span>
+          )}
+          {draftSaveState === 'saved' && <span className="text-xs" style={{ color: 'var(--success)' }}>✓ Saved</span>}
+          {draftSaveState === 'error' && <span className="text-xs" style={{ color: 'var(--danger)' }}>Save failed</span>}
+        </div>
 
         {isLast ? (
           <div className="flex flex-col items-end gap-1">
