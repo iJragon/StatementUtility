@@ -1143,26 +1143,19 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <NetworkAnimation />
                   </div>
 
-                  {/* Content overlay */}
+                  {/* Content overlay — sits in upper third, no heavy backdrop */}
                   <div
-                    className="relative z-10 flex flex-col items-center gap-5 text-center px-10 py-10 rounded-2xl"
-                    style={{
-                      backdropFilter: 'blur(22px)',
-                      WebkitBackdropFilter: 'blur(22px)',
-                      backgroundColor: resolvedTheme === 'light'
-                        ? 'rgba(240,248,255,0.55)'
-                        : 'rgba(4,10,28,0.52)',
-                      border: '1px solid',
-                      borderColor: resolvedTheme === 'light'
-                        ? 'rgba(60,110,200,0.18)'
-                        : 'rgba(40,100,220,0.22)',
-                    }}
+                    className="relative z-10 flex flex-col items-center gap-4 text-center px-8 py-8"
+                    style={{ marginTop: '-18%' }}
                   >
                     <p
                       className="text-xs font-semibold uppercase"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(20,65,140,0.75)' : 'rgba(140,200,255,0.75)',
+                        color: resolvedTheme === 'light' ? 'rgba(14,50,120,0.82)' : 'rgba(160,210,255,0.82)',
                         letterSpacing: '0.28em',
+                        textShadow: resolvedTheme === 'light'
+                          ? '0 1px 8px rgba(200,225,255,0.9)'
+                          : '0 0 12px rgba(0,80,180,0.8)',
                       }}
                     >
                       Real Estate Intelligence
@@ -1174,10 +1167,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                         fontSize: 'clamp(2.4rem, 6vw, 4.5rem)',
                         letterSpacing: '0.18em',
                         lineHeight: 1,
-                        color: resolvedTheme === 'light' ? '#0c2040' : '#e8f4ff',
+                        color: resolvedTheme === 'light' ? '#0a1e40' : '#eaf4ff',
                         textShadow: resolvedTheme === 'light'
-                          ? 'none'
-                          : '0 0 60px rgba(0,160,255,0.4), 0 0 120px rgba(0,100,200,0.22)',
+                          ? '0 2px 24px rgba(180,215,255,0.95), 0 0 40px rgba(140,190,255,0.5)'
+                          : '0 0 50px rgba(0,160,255,0.45), 0 0 100px rgba(0,100,200,0.25)',
                       }}
                     >
                       ESTATELYTICS
@@ -1186,8 +1179,11 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <p
                       className="text-sm leading-relaxed max-w-xs"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(14,48,108,0.78)' : 'rgba(195,222,255,0.82)',
+                        color: resolvedTheme === 'light' ? 'rgba(10,40,100,0.80)' : 'rgba(200,225,255,0.78)',
                         letterSpacing: '0.02em',
+                        textShadow: resolvedTheme === 'light'
+                          ? '0 1px 10px rgba(200,225,255,0.85)'
+                          : '0 0 16px rgba(0,60,160,0.7)',
                       }}
                     >
                       Underwrite deals. Analyze properties. Decide with confidence.
