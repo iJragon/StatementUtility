@@ -384,7 +384,7 @@ export default function DealView({
         </div>
 
         {error && (
-          <div className="mt-2 text-xs px-3 py-2 rounded" style={{ backgroundColor: '#fee2e2', color: '#dc2626' }}>
+          <div className="mt-2 text-xs px-3 py-2 rounded alert-error">
             {error}
           </div>
         )}
@@ -521,7 +521,7 @@ export default function DealView({
           <div className="flex-1 overflow-hidden">
             {tab === 'overview'    && <DealOverviewTab metrics={deal.analysis!.metrics} score={deal.analysis!.score} inputs={deal.inputs!} investorProfile={investorProfile} />}
             {tab === 'apod'        && <APODTab metrics={deal.analysis!.metrics} inputs={deal.inputs!} proForma={deal.analysis!.proForma} />}
-            {tab === 'proforma'    && <ProFormaTab proForma={deal.analysis!.proForma} />}
+            {tab === 'proforma'    && <ProFormaTab proForma={deal.analysis!.proForma} inputs={deal.inputs!} />}
             {tab === 'sensitivity' && <SensitivityTab sensitivity={deal.analysis!.sensitivity} investorProfile={investorProfile} />}
             {tab === 'montecarlo'  && deal.analysis!.monteCarlo && <MonteCarloTab result={deal.analysis!.monteCarlo} />}
             {tab === 'montecarlo'  && !deal.analysis!.monteCarlo && (

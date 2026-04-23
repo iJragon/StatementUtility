@@ -138,7 +138,7 @@ function WarningBanner({ warnings }: { warnings: ValidationWarning[] }) {
         <div
           key={i}
           className="flex items-start gap-2 px-3 py-2 rounded text-xs"
-          style={{ backgroundColor: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.25)', color: '#b45309' }}
+          style={{ backgroundColor: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.25)', color: 'var(--warning)' }}
         >
           <svg className="shrink-0 mt-0.5" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
@@ -217,7 +217,7 @@ function T12ImportModal({ history, onImport, onClose }: T12ModalProps) {
         </p>
 
         {error && (
-          <p className="text-xs mb-2 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+          <p className="text-xs mb-2 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: 'var(--danger)' }}>
             {error}
           </p>
         )}
@@ -332,7 +332,7 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
         </p>
 
         {error && (
-          <p className="text-xs mb-3 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#dc2626' }}>
+          <p className="text-xs mb-3 px-3 py-2 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: 'var(--danger)' }}>
             {error}
           </p>
         )}
@@ -480,7 +480,7 @@ export default function DealInputForm({ initialInputs, onSave, onCancel, saving,
               <span
                 className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs mr-1"
                 style={{
-                  backgroundColor: hasError ? '#dc2626' : hasWarning ? '#b45309' : s.key === step ? 'var(--accent)' : 'var(--border)',
+                  backgroundColor: hasError ? 'var(--danger)' : hasWarning ? 'var(--warning)' : s.key === step ? 'var(--accent)' : 'var(--border)',
                   color: (hasError || hasWarning || s.key === step) ? '#fff' : 'var(--muted)',
                 }}
               >
@@ -692,12 +692,12 @@ export default function DealInputForm({ initialInputs, onSave, onCancel, saving,
         {isLast ? (
           <div className="flex flex-col items-end gap-1">
             {!canSave && (
-              <p className="text-xs" style={{ color: '#dc2626' }}>
+              <p className="text-xs" style={{ color: 'var(--danger)' }}>
                 {allErrors.length} error{allErrors.length > 1 ? 's' : ''} must be fixed before saving
               </p>
             )}
             {warnings.filter(w => w.level === 'warn').length > 0 && canSave && (
-              <p className="text-xs" style={{ color: '#b45309' }}>
+              <p className="text-xs" style={{ color: 'var(--warning)' }}>
                 {warnings.filter(w => w.level === 'warn').length} warning{warnings.filter(w => w.level === 'warn').length > 1 ? 's' : ''}, review before proceeding
               </p>
             )}

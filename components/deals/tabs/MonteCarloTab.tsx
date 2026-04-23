@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import type { MonteCarloResult } from '@/lib/models/deal';
 import PlotlyChart from '@/components/charts/PlotlyChart';
 
@@ -44,8 +45,10 @@ export default function MonteCarloTab({ result }: Props) {
     : 'var(--danger)';
 
   // Scatter: IRR vs CoC, colored by viability
-  const viableSamples  = samples.filter(s => s.dscr >= 1.0 && s.coc > 0);
-  const invalidSamples = samples.filter(s => s.dscr < 1.0 || s.coc <= 0);
+  const viableSamples  = useMemo(() => samples.filter(s => s.dscr >= 1.0 && s.coc > 0), [samples]);
+  const invalidSamples = useMemo(() => samples.filter(s => s.dscr < 1.0 || s.coc <= 0), [samples]);
+
+  const markerSize = Math.max(2, Math.min(6, 10000 / samples.length));
 
   const scatterData: Plotly.Data[] = [
     {
@@ -54,7 +57,7 @@ export default function MonteCarloTab({ result }: Props) {
       name: 'Viable',
       x: viableSamples.map(s => s.coc * 100),
       y: viableSamples.map(s => s.irr * 100),
-      marker: { color: 'rgba(34,197,94,0.55)', size: 5, line: { color: 'rgba(34,197,94,0.8)', width: 0.5 } },
+      marker: { color: 'rgba(34,197,94,0.55)', size: markerSize, line: { color: 'rgba(34,197,94,0.8)', width: 0.5 } },
     },
     {
       type: 'scatter',
@@ -62,7 +65,7 @@ export default function MonteCarloTab({ result }: Props) {
       name: 'Non-viable',
       x: invalidSamples.map(s => s.coc * 100),
       y: invalidSamples.map(s => s.irr * 100),
-      marker: { color: 'rgba(239,68,68,0.45)', size: 5, line: { color: 'rgba(239,68,68,0.7)', width: 0.5 } },
+      marker: { color: 'rgba(239,68,68,0.45)', size: markerSize, line: { color: 'rgba(239,68,68,0.7)', width: 0.5 } },
     },
   ];
 

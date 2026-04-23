@@ -89,6 +89,7 @@ export default function NotesTab({ dealId, initialNotes, onSaved }: Props) {
         onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
         onBlur={e => {
           e.currentTarget.style.borderColor = 'var(--border)';
+          if (timerRef.current) clearTimeout(timerRef.current);
           save(text);
         }}
       />

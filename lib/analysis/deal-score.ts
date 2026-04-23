@@ -26,7 +26,8 @@ function cashFlowScore(m: DealMetrics, profile: InvestorProfile): number {
 // IRR starts scoring at 5% (risk-free floor), full score at profile target.
 // NPV ratio: positive NPV relative to cash invested.
 function returnScore(m: DealMetrics, profile: InvestorProfile): number {
-  const irrScore = scoreLinear(m.irr, 0.05, profile.targetIRR);
+  // Guard NaN: irr() returns NaN when no real root exists (degenerate cash flows).
+  const irrScore = isFinite(m.irr) ? scoreLinear(m.irr, 0.05, profile.targetIRR) : 0;
   const npvScore = m.npv > 0 ? scoreLinear(m.npv / Math.max(m.totalCashInvested, 1), 0, 0.4) : 0;
   return (irrScore * 0.6 + npvScore * 0.4);
 }

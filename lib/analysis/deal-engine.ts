@@ -37,7 +37,7 @@ function irr(cashFlows: number[]): number {
   const npvAt = (r: number) =>
     cashFlows.reduce((acc, cf, i) => acc + cf / Math.pow(1 + r, i + 1), 0);
 
-  if (npvAt(lo) * npvAt(hi) > 0) return 0; // no real IRR
+  if (npvAt(lo) * npvAt(hi) > 0) return NaN; // no real IRR in [-90%, 1000%]
 
   for (let i = 0; i < maxIter; i++) {
     const mid = (lo + hi) / 2;

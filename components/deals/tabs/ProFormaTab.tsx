@@ -1,10 +1,11 @@
 'use client';
 
-import type { ProFormaYear } from '@/lib/models/deal';
+import type { ProFormaYear, DealInputs } from '@/lib/models/deal';
 import PlotlyChart from '@/components/charts/PlotlyChart';
 
 interface Props {
   proForma: ProFormaYear[];
+  inputs: DealInputs;
 }
 
 function fmt(n: number, type: 'dollar' | 'pct'): string {
@@ -42,7 +43,7 @@ const ROWS: Array<{ label: string; key: keyof ProFormaYear; type: 'dollar' | 'pc
   { label: 'Return on Equity',       key: 'returnOnEquity',       type: 'pct' },
 ];
 
-export default function ProFormaTab({ proForma }: Props) {
+export default function ProFormaTab({ proForma, inputs }: Props) {
   const years = proForma.map(y => `Yr ${y.year}`);
 
   // Chart 1: NOI & Cash Flow
@@ -105,30 +106,23 @@ export default function ProFormaTab({ proForma }: Props) {
   ];
 
   // Chart 3: Cumulative Four Returns
-  let cumCF = 0, cumAppreciation = 0, cumAmort = 0, cumTaxBenefit = 0;
+  let cumCF = 0, cumAmort = 0, cumTaxBenefit = 0;
   const cumCFArr: number[] = [];
   const cumAppArr: number[] = [];
   const cumAmortArr: number[] = [];
   const cumTaxArr: number[] = [];
+  const purchasePrice = inputs.purchasePrice;
 
-  const initialPrice = proForma[0]?.propertyValue
-    ? proForma[0].propertyValue * (1 / (1 + 0)) // approximate
-    : 0;
-
-  proForma.forEach((y, idx) => {
+  proForma.forEach(y => {
     cumCF += y.cashFlowBeforeTax;
-    // Appreciation = increase in property value vs purchase price (implied from equity movement)
-    const buyPrice = proForma[0].propertyValue; // year 1 implied value (not purchase price per se, but tracks growth)
-    cumAppreciation = y.propertyValue - buyPrice;
+    const cumAppreciation = y.propertyValue - purchasePrice;
     cumAmort += y.principalPaydown;
-    cumTaxBenefit += Math.max(0, -y.taxableIncome) * 0.24; // approximate tax bracket
+    cumTaxBenefit += Math.max(0, -y.taxableIncome) * (inputs.taxBracket ?? 0.24);
 
     cumCFArr.push(cumCF);
     cumAppArr.push(Math.max(0, cumAppreciation));
     cumAmortArr.push(cumAmort);
     cumTaxArr.push(cumTaxBenefit);
-
-    void idx; void initialPrice;
   });
 
   const chart3Data: Plotly.Data[] = [
