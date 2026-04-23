@@ -1151,10 +1151,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <p
                       className="text-xs font-semibold uppercase"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(14,50,120,0.82)' : 'rgba(160,210,255,0.82)',
+                        color: resolvedTheme === 'light' ? '#0b2550' : 'rgba(160,210,255,0.82)',
                         letterSpacing: '0.28em',
                         textShadow: resolvedTheme === 'light'
-                          ? '0 1px 8px rgba(200,225,255,0.9)'
+                          ? '0 1px 6px rgba(255,255,255,0.9), 0 0 20px rgba(255,255,255,0.7)'
                           : '0 0 12px rgba(0,80,180,0.8)',
                       }}
                     >
@@ -1167,9 +1167,9 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                         fontSize: 'clamp(2.4rem, 6vw, 4.5rem)',
                         letterSpacing: '0.18em',
                         lineHeight: 1,
-                        color: resolvedTheme === 'light' ? '#0a1e40' : '#eaf4ff',
+                        color: resolvedTheme === 'light' ? '#07172e' : '#eaf4ff',
                         textShadow: resolvedTheme === 'light'
-                          ? '0 2px 24px rgba(180,215,255,0.95), 0 0 40px rgba(140,190,255,0.5)'
+                          ? '0 2px 12px rgba(255,255,255,1), 0 0 40px rgba(255,255,255,0.8)'
                           : '0 0 50px rgba(0,160,255,0.45), 0 0 100px rgba(0,100,200,0.25)',
                       }}
                     >
@@ -1179,10 +1179,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <p
                       className="text-sm leading-relaxed max-w-xs"
                       style={{
-                        color: resolvedTheme === 'light' ? 'rgba(10,40,100,0.80)' : 'rgba(200,225,255,0.78)',
+                        color: resolvedTheme === 'light' ? '#0d2248' : 'rgba(200,225,255,0.78)',
                         letterSpacing: '0.02em',
                         textShadow: resolvedTheme === 'light'
-                          ? '0 1px 10px rgba(200,225,255,0.85)'
+                          ? '0 1px 8px rgba(255,255,255,0.95), 0 0 24px rgba(255,255,255,0.7)'
                           : '0 0 16px rgba(0,60,160,0.7)',
                       }}
                     >
