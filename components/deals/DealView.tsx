@@ -64,7 +64,7 @@ export default function DealView({
   investorProfile,
 }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
-  const [editingInputs, setEditingInputs] = useState(false);
+  const [editingInputs, setEditingInputs] = useState(deal.status === 'draft');
   const [analyzing, setAnalyzing] = useState(false);
   const [streamingNarrative, setStreamingNarrative] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
