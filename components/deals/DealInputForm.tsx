@@ -321,7 +321,7 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
         style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Import from Spreadsheet</h3>
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Import from Spreadsheet or PDF</h3>
           <button onClick={onClose} className="p-1 rounded" style={{ color: 'var(--muted)' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -329,7 +329,7 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
           </button>
         </div>
         <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
-          Upload any Excel or CSV file — deal assumptions, rent rolls, pro formas, any format. AI extracts what it can; missing fields default to current market rates.
+          Upload an Excel, CSV, or PDF file — offering memorandums, rent rolls, pro formas, any format. AI extracts what it can; missing fields default to current market rates.
         </p>
 
         {error && (
@@ -364,11 +364,11 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Drop file here or click to browse</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>.xlsx · .xls · .csv</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>.xlsx · .xls · .csv · .pdf</p>
             <input
               ref={fileRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.xls,.csv,.pdf"
               className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
@@ -559,7 +559,7 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
               </svg>
-              Import from Spreadsheet
+              Import from Spreadsheet or PDF
             </button>
             <Field label="Property Type">
               <div className="flex gap-2">

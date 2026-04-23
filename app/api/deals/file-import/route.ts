@@ -4,11 +4,12 @@ import { getGroqClient, DEFAULT_MODEL } from '@/lib/agents/base';
 import type { DealInputs } from '@/lib/models/deal';
 import { DEFAULT_DEAL_INPUTS } from '@/lib/models/deal';
 import * as XLSX from 'xlsx';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buf: Buffer) => Promise<{ text: string }>;
 
 // POST /api/deals/file-import
-// Accepts any Excel or CSV file and uses AI to extract deal underwriting inputs.
-// Any field the AI cannot confidently extract is omitted — callers use DEFAULT_DEAL_INPUTS
-// as the baseline so current market-rate defaults fill the gaps.
+// Accepts Excel, CSV, or PDF (OMs, pro formas, rent rolls) and uses AI to extract
+// deal underwriting inputs. Any field the AI cannot confidently extract is omitted.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -20,38 +21,61 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
   }
 
+  const fileName = file instanceof File ? file.name.toLowerCase() : '';
+  const isPdf = fileName.endsWith('.pdf') || file.type === 'application/pdf';
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const rows: string[] = [];
 
-  try {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      // sheet_to_json with header:1 gives raw arrays — better for irregular layouts
-      const data = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false });
-      for (const row of data) {
-        if (!Array.isArray(row)) continue;
-        const cells = row.map(c => String(c ?? '').trim()).filter(Boolean);
-        if (cells.length > 0) rows.push(cells.join(' | '));
+  if (isPdf) {
+    try {
+      const data = await pdfParse(buffer);
+      const text = data.text ?? '';
+      if (!text.trim()) {
+        return NextResponse.json(
+          { error: 'Could not extract text from this PDF. It may be a scanned image — try a text-based PDF.' },
+          { status: 422 },
+        );
       }
+      // Split into non-empty lines, cap at 400 lines to stay within token budget
+      const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+      rows.push(...lines.slice(0, 400));
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not parse the PDF. Please try a different file.' },
+        { status: 422 },
+      );
     }
-  } catch {
-    return NextResponse.json(
-      { error: 'Could not parse file. Please upload an Excel (.xlsx, .xls) or CSV file.' },
-      { status: 422 },
-    );
+  } else {
+    try {
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: false });
+        for (const row of data) {
+          if (!Array.isArray(row)) continue;
+          const cells = row.map(c => String(c ?? '').trim()).filter(Boolean);
+          if (cells.length > 0) rows.push(cells.join(' | '));
+        }
+      }
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not parse file. Please upload an Excel (.xlsx, .xls), CSV, or PDF file.' },
+        { status: 422 },
+      );
+    }
   }
 
   if (rows.length === 0) {
     return NextResponse.json({ error: 'The file appears to be empty.' }, { status: 422 });
   }
 
-  const prompt = `You are a real estate financial analyst. Below is raw data from a spreadsheet that may contain deal assumptions, acquisition details, a rent roll, pro forma projections, or any other property-related data.
+  const prompt = `You are a real estate financial analyst. Below is text extracted from a ${isPdf ? 'PDF offering memorandum, pro forma, or deal document' : 'spreadsheet'} that may contain deal assumptions, acquisition details, a rent roll, pro forma projections, or any other property-related data.
 
 Extract deal underwriting inputs. Return ONLY valid JSON — no explanation, no markdown.
 
-SPREADSHEET DATA (first 250 rows):
-${rows.slice(0, 250).join('\n')}
+DOCUMENT TEXT:
+${rows.join('\n')}
 
 Return this exact JSON shape (rates as decimals, dollar amounts as annual figures):
 {
