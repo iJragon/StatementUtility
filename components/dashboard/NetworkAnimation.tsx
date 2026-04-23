@@ -301,6 +301,45 @@ export default function NetworkAnimation({ className }: { className?: string }) 
       }
     }
 
+    // ── Draw: title text (rendered between mid and near so near buildings occlude it) ──
+    function drawText(dk: boolean) {
+      const titleSize    = Math.max(28, Math.min(68, W * 0.058));
+      const overlineSize = Math.max(9,  Math.min(14, W * 0.012));
+      const subtitleSize = Math.max(10, Math.min(15, W * 0.013));
+      const cx    = W / 2;
+      const titleY = H * 0.375;
+
+      c.save();
+      c.textAlign    = 'center';
+      c.textBaseline = 'middle';
+
+      // Overline
+      c.font          = `600 ${overlineSize}px system-ui,-apple-system,sans-serif`;
+      c.letterSpacing = '0.28em';
+      c.fillStyle     = dk ? 'rgba(160,210,255,0.82)' : '#0b2550';
+      c.shadowColor   = dk ? 'rgba(0,80,180,0.8)' : 'rgba(255,255,255,0.9)';
+      c.shadowBlur    = dk ? 10 : 18;
+      c.fillText('REAL ESTATE INTELLIGENCE', cx, titleY - titleSize * 0.88);
+
+      // Title
+      c.font          = `900 ${titleSize}px system-ui,-apple-system,sans-serif`;
+      c.letterSpacing = '0.18em';
+      c.fillStyle     = dk ? '#eaf4ff' : '#07172e';
+      c.shadowColor   = dk ? 'rgba(0,160,255,0.5)' : 'rgba(255,255,255,1)';
+      c.shadowBlur    = dk ? 55 : 42;
+      c.fillText('ESTATELYTICS', cx, titleY);
+
+      // Subtitle
+      c.font          = `400 ${subtitleSize}px system-ui,-apple-system,sans-serif`;
+      c.letterSpacing = '0.04em';
+      c.fillStyle     = dk ? 'rgba(200,225,255,0.78)' : '#0d2248';
+      c.shadowColor   = dk ? 'rgba(0,60,160,0.7)' : 'rgba(255,255,255,0.95)';
+      c.shadowBlur    = dk ? 14 : 22;
+      c.fillText('Underwrite deals. Analyze properties. Decide with confidence.', cx, titleY + titleSize * 0.82);
+
+      c.restore();
+    }
+
     // ── Draw: edge vignette ────────────────────────────────────────────────────
     function drawVignette(dk: boolean) {
       const vc = dk ? 'rgba(0,0,0,' : 'rgba(215,230,248,';
@@ -347,7 +386,8 @@ export default function NetworkAnimation({ className }: { className?: string }) 
       drawLayer(0, LAYERS[0], off[0], hy, ALPHAS[0], dk); // far
       drawLayer(1, LAYERS[1], off[1], hy, ALPHAS[1], dk); // mid
       drawHorizon(dk, hy);
-      drawLayer(2, LAYERS[2], off[2], hy, ALPHAS[2], dk); // near
+      drawText(dk);                                        // text sits here — near buildings scroll over it
+      drawLayer(2, LAYERS[2], off[2], hy, ALPHAS[2], dk); // near (occludes text for depth)
       drawVignette(dk);
     }
 

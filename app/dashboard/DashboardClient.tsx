@@ -27,7 +27,6 @@ import DealView from '@/components/deals/DealView';
 import DealCompareView from '@/components/deals/DealCompareView';
 import InvestorProfilePanel from '@/components/deals/InvestorProfilePanel';
 import NetworkAnimation from '@/components/dashboard/NetworkAnimation';
-import { useTheme } from 'next-themes';
 
 interface DashboardClientProps {
   userEmail: string;
@@ -54,7 +53,6 @@ const TOOL_TABS = [
 
 export default function DashboardClient({ userEmail, initialHistory, initialProperties, initialDeals }: DashboardClientProps) {
   const router = useRouter();
-  const { resolvedTheme } = useTheme();
 
   // ── Analysis view state ────────────────────────────────────────────────────
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -441,6 +439,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   async function handleHistorySelect(entry: HistoryEntry) {
+    setShowCompare(false);
     setLoadingHistoryId(entry.id);
     try {
       const res = await fetch(`/api/history/${entry.id}`);
@@ -580,6 +579,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   async function handlePropertySelect(prop: PropertyEntry) {
+    setShowCompare(false);
     setActiveView('property');
     setActivePropertyId(prop.id);
     setPropertyLoading(true);
@@ -802,6 +802,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
   }
 
   async function handleDealSelect(entry: DealEntry) {
+    setShowCompare(false);
     setActiveView('deal');
     setActiveDealId(entry.id);
     try {
@@ -955,7 +956,7 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
         onPropertyRename={handlePropertyRename}
         onPropertyAddressEdit={handlePropertyAddressEdit}
         onPropertyDelete={handlePropertyDelete}
-        onNavigateHome={() => { setActiveView('analysis'); setActivePropertyId(undefined); setActiveDealId(undefined); setActiveDeal(null); setAnalysis(null); }}
+        onNavigateHome={() => { setShowCompare(false); setActiveView('analysis'); setActivePropertyId(undefined); setActiveDealId(undefined); setActiveDeal(null); setAnalysis(null); }}
         onSignOut={handleSignOut}
         loadingHistoryId={loadingHistoryId}
         loadingPropertyId={propertyLoading ? activePropertyId : undefined}
@@ -1146,52 +1147,6 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
                     <NetworkAnimation />
                   </div>
 
-                  {/* Content overlay — sits in upper third, no heavy backdrop */}
-                  <div
-                    className="relative z-10 flex flex-col items-center gap-4 text-center px-8 py-8"
-                    style={{ marginTop: '-18%' }}
-                  >
-                    <p
-                      className="text-xs font-semibold uppercase"
-                      style={{
-                        color: resolvedTheme === 'light' ? '#0b2550' : 'rgba(160,210,255,0.82)',
-                        letterSpacing: '0.28em',
-                        textShadow: resolvedTheme === 'light'
-                          ? '0 1px 6px rgba(255,255,255,0.9), 0 0 20px rgba(255,255,255,0.7)'
-                          : '0 0 12px rgba(0,80,180,0.8)',
-                      }}
-                    >
-                      Real Estate Intelligence
-                    </p>
-
-                    <h1
-                      className="font-black uppercase"
-                      style={{
-                        fontSize: 'clamp(2.4rem, 6vw, 4.5rem)',
-                        letterSpacing: '0.18em',
-                        lineHeight: 1,
-                        color: resolvedTheme === 'light' ? '#07172e' : '#eaf4ff',
-                        textShadow: resolvedTheme === 'light'
-                          ? '0 2px 12px rgba(255,255,255,1), 0 0 40px rgba(255,255,255,0.8)'
-                          : '0 0 50px rgba(0,160,255,0.45), 0 0 100px rgba(0,100,200,0.25)',
-                      }}
-                    >
-                      ESTATELYTICS
-                    </h1>
-
-                    <p
-                      className="text-sm leading-relaxed max-w-xs"
-                      style={{
-                        color: resolvedTheme === 'light' ? '#0d2248' : 'rgba(200,225,255,0.78)',
-                        letterSpacing: '0.02em',
-                        textShadow: resolvedTheme === 'light'
-                          ? '0 1px 8px rgba(255,255,255,0.95), 0 0 24px rgba(255,255,255,0.7)'
-                          : '0 0 16px rgba(0,60,160,0.7)',
-                      }}
-                    >
-                      Underwrite deals. Analyze properties. Decide with confidence.
-                    </p>
-                  </div>
                 </div>
               )}
 
@@ -1312,10 +1267,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>Choose 2–6 analyzed deals</p>
             </div>
             <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
-              {deals.filter(d => d.status !== 'draft' || d.dealScore !== undefined).length === 0 ? (
+              {deals.filter(d => d.status !== 'draft').length === 0 ? (
                 <p className="px-5 py-6 text-sm text-center" style={{ color: 'var(--muted)' }}>No analyzed deals yet.</p>
               ) : (
-                deals.filter(d => d.status !== 'draft' || d.dealScore !== undefined).map(deal => {
+                deals.filter(d => d.status !== 'draft').map(deal => {
                   const isChecked = selectedCompareIds.has(deal.id);
                   const isDisabled = !isChecked && selectedCompareIds.size >= 6;
                   return (
