@@ -31,14 +31,26 @@ function Field({
   label,
   hint,
   children,
+  extracted,
 }: {
   label: string;
   hint?: string;
   children: React.ReactNode;
+  extracted?: boolean;
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text)' }}>{label}</label>
+      <div className="flex items-center gap-2 mb-1">
+        <label className="text-sm font-medium" style={{ color: 'var(--text)' }}>{label}</label>
+        {extracted && (
+          <span
+            className="px-1.5 py-0.5 rounded-full font-semibold uppercase"
+            style={{ fontSize: '0.6rem', letterSpacing: '0.06em', backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--success)' }}
+          >
+            from PDF
+          </span>
+        )}
+      </div>
       {hint && <p className="text-xs mb-1" style={{ color: 'var(--muted)' }}>{hint}</p>}
       {children}
     </div>
@@ -422,6 +434,7 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
   const [showT12Modal, setShowT12Modal] = useState(false);
   const [showFileImportModal, setShowFileImportModal] = useState(false);
   const [draftSaveState, setDraftSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [extractedFields, setExtractedFields] = useState<Set<string>>(new Set());
 
   const timerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestRef      = useRef(inputs);
@@ -485,23 +498,36 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
   }
 
   function applyFileImport(prefill: Partial<DealInputs>) {
+    // Track which fields were actually extracted so the form can highlight them
+    const extracted = new Set<string>();
+    const topKeys: Array<keyof DealInputs> = [
+      'purchasePrice', 'downPayment', 'interestRate', 'amortizationYears', 'loanTermYears',
+      'closingCostRate', 'capexBudget', 'grossScheduledIncome', 'otherIncome',
+      'vacancyRate', 'rentGrowthRate', 'expenseGrowthRate', 'exitCapRate', 'holdPeriod', 'propertyType',
+    ];
+    for (const k of topKeys) { if (prefill[k] !== undefined) extracted.add(k); }
+    if (prefill.expenses) {
+      for (const k of Object.keys(prefill.expenses)) extracted.add(`expenses.${k}`);
+    }
+    setExtractedFields(extracted);
+
     setInputs(prev => ({
       ...prev,
-      ...(prefill.purchasePrice       !== undefined && { purchasePrice:        prefill.purchasePrice }),
-      ...(prefill.downPayment         !== undefined && { downPayment:          prefill.downPayment }),
-      ...(prefill.interestRate        !== undefined && { interestRate:         prefill.interestRate }),
-      ...(prefill.amortizationYears   !== undefined && { amortizationYears:    prefill.amortizationYears }),
-      ...(prefill.loanTermYears       !== undefined && { loanTermYears:        prefill.loanTermYears }),
-      ...(prefill.closingCostRate     !== undefined && { closingCostRate:      prefill.closingCostRate }),
-      ...(prefill.capexBudget         !== undefined && { capexBudget:          prefill.capexBudget }),
+      ...(prefill.purchasePrice        !== undefined && { purchasePrice:        prefill.purchasePrice }),
+      ...(prefill.downPayment          !== undefined && { downPayment:          prefill.downPayment }),
+      ...(prefill.interestRate         !== undefined && { interestRate:         prefill.interestRate }),
+      ...(prefill.amortizationYears    !== undefined && { amortizationYears:    prefill.amortizationYears }),
+      ...(prefill.loanTermYears        !== undefined && { loanTermYears:        prefill.loanTermYears }),
+      ...(prefill.closingCostRate      !== undefined && { closingCostRate:      prefill.closingCostRate }),
+      ...(prefill.capexBudget          !== undefined && { capexBudget:          prefill.capexBudget }),
       ...(prefill.grossScheduledIncome !== undefined && { grossScheduledIncome: prefill.grossScheduledIncome }),
-      ...(prefill.otherIncome         !== undefined && { otherIncome:          prefill.otherIncome }),
-      ...(prefill.vacancyRate         !== undefined && { vacancyRate:          prefill.vacancyRate }),
-      ...(prefill.rentGrowthRate      !== undefined && { rentGrowthRate:       prefill.rentGrowthRate }),
-      ...(prefill.expenseGrowthRate   !== undefined && { expenseGrowthRate:    prefill.expenseGrowthRate }),
-      ...(prefill.exitCapRate         !== undefined && { exitCapRate:          prefill.exitCapRate }),
-      ...(prefill.holdPeriod          !== undefined && { holdPeriod:           prefill.holdPeriod }),
-      ...(prefill.propertyType        !== undefined && { propertyType:         prefill.propertyType }),
+      ...(prefill.otherIncome          !== undefined && { otherIncome:          prefill.otherIncome }),
+      ...(prefill.vacancyRate          !== undefined && { vacancyRate:          prefill.vacancyRate }),
+      ...(prefill.rentGrowthRate       !== undefined && { rentGrowthRate:       prefill.rentGrowthRate }),
+      ...(prefill.expenseGrowthRate    !== undefined && { expenseGrowthRate:    prefill.expenseGrowthRate }),
+      ...(prefill.exitCapRate          !== undefined && { exitCapRate:          prefill.exitCapRate }),
+      ...(prefill.holdPeriod           !== undefined && { holdPeriod:           prefill.holdPeriod }),
+      ...(prefill.propertyType         !== undefined && { propertyType:         prefill.propertyType }),
       expenses: prefill.expenses ? { ...prev.expenses, ...prefill.expenses } : prev.expenses,
     }));
     setShowFileImportModal(false);
@@ -509,18 +535,20 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
   }
 
   function applyT12Import(prefill: Partial<DealInputs>) {
+    const extracted = new Set<string>();
+    if (prefill.grossScheduledIncome !== undefined) extracted.add('grossScheduledIncome');
+    if (prefill.expenses) {
+      for (const k of Object.keys(prefill.expenses)) extracted.add(`expenses.${k}`);
+    }
+    setExtractedFields(prev => new Set([...prev, ...extracted]));
+
     setInputs(prev => ({
       ...prev,
       ...(prefill.grossScheduledIncome !== undefined && { grossScheduledIncome: prefill.grossScheduledIncome }),
-      expenses: prefill.expenses
-        ? { ...prev.expenses, ...prefill.expenses }
-        : prev.expenses,
+      expenses: prefill.expenses ? { ...prev.expenses, ...prefill.expenses } : prev.expenses,
     }));
     setShowT12Modal(false);
-    // Navigate to income step to show imported values
-    if (prefill.grossScheduledIncome !== undefined) {
-      setStep('income');
-    }
+    if (prefill.grossScheduledIncome !== undefined) setStep('income');
   }
 
   const stepIndex = STEPS.findIndex(s => s.key === step);
@@ -596,7 +624,7 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
               </svg>
               Import from Spreadsheet or PDF
             </button>
-            <Field label="Property Type">
+            <Field label="Property Type" extracted={extractedFields.has('propertyType')}>
               <div className="flex gap-2">
                 {(['residential', 'commercial', 'mixed'] as const).map(pt => (
                   <button
@@ -614,13 +642,13 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
                 ))}
               </div>
             </Field>
-            <Field label="Purchase Price">
+            <Field label="Purchase Price" extracted={extractedFields.has('purchasePrice')}>
               <NumberInput value={inputs.purchasePrice} onChange={v => set('purchasePrice', v)} prefix="$" />
             </Field>
-            <Field label="Closing Cost Rate" hint="Typically 2–4% of purchase price">
+            <Field label="Closing Cost Rate" hint="Typically 2–4% of purchase price" extracted={extractedFields.has('closingCostRate')}>
               <PctInput value={inputs.closingCostRate} onChange={v => set('closingCostRate', v)} />
             </Field>
-            <Field label="CapEx Budget" hint="Planned capital improvements at purchase">
+            <Field label="CapEx Budget" hint="Planned capital improvements at purchase" extracted={extractedFields.has('capexBudget')}>
               <NumberInput value={inputs.capexBudget} onChange={v => set('capexBudget', v)} prefix="$" />
             </Field>
             <Field label="Depreciation Schedule">
@@ -649,7 +677,10 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
 
         {step === 'financing' && (
           <>
-            <Field label="Down Payment" hint="Dollar amount (not a percentage)">
+            <p className="text-xs px-1 py-1.5 rounded" style={{ color: 'var(--muted)', backgroundColor: 'var(--surface)', border: '1px solid var(--border)' }}>
+              Down payment, interest rate, and loan terms are not typically found in offering memoranda — obtain these from your lender or broker.
+            </p>
+            <Field label="Down Payment" hint="Dollar amount (not a percentage)" extracted={extractedFields.has('downPayment')}>
               <NumberInput value={inputs.downPayment} onChange={v => set('downPayment', v)} prefix="$" />
             </Field>
             {inputs.purchasePrice > 0 && inputs.downPayment > 0 && (
@@ -658,13 +689,13 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
                 ({((1 - inputs.downPayment / inputs.purchasePrice) * 100).toFixed(1)}% LTV)
               </p>
             )}
-            <Field label="Interest Rate (Annual)">
+            <Field label="Interest Rate (Annual)" extracted={extractedFields.has('interestRate')}>
               <PctInput value={inputs.interestRate} onChange={v => set('interestRate', v)} />
             </Field>
-            <Field label="Amortization Period">
+            <Field label="Amortization Period" extracted={extractedFields.has('amortizationYears')}>
               <NumberInput value={inputs.amortizationYears} onChange={v => set('amortizationYears', v)} suffix="years" />
             </Field>
-            <Field label="Loan Term (Balloon)" hint="When the balloon payment is due (≤ amortization period)">
+            <Field label="Loan Term (Balloon)" hint="When the balloon payment is due (≤ amortization period)" extracted={extractedFields.has('loanTermYears')}>
               <NumberInput value={inputs.loanTermYears} onChange={v => set('loanTermYears', v)} suffix="years" />
             </Field>
           </>
@@ -688,10 +719,10 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
                 Import from T12 Analysis
               </button>
             )}
-            <Field label="Gross Scheduled Income" hint="Annual potential rental income at 100% occupancy">
+            <Field label="Gross Scheduled Income" hint="Annual potential rental income at 100% occupancy" extracted={extractedFields.has('grossScheduledIncome')}>
               <NumberInput value={inputs.grossScheduledIncome} onChange={v => set('grossScheduledIncome', v)} prefix="$" />
             </Field>
-            <Field label="Other Income" hint="Annual parking, laundry, storage, etc.">
+            <Field label="Other Income" hint="Annual parking, laundry, storage, etc." extracted={extractedFields.has('otherIncome')}>
               <NumberInput value={inputs.otherIncome} onChange={v => set('otherIncome', v)} prefix="$" />
             </Field>
           </>
@@ -719,7 +750,7 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
               Enter annual operating expenses. Leave at $0 for categories that don&apos;t apply.
             </p>
             {expenseFields.map(({ key, label }) => (
-              <Field key={key} label={label}>
+              <Field key={key} label={label} extracted={extractedFields.has(`expenses.${key}`)}>
                 <NumberInput
                   value={inputs.expenses[key]}
                   onChange={v => setExpense(key, v)}
@@ -740,19 +771,19 @@ export default function DealInputForm({ dealId, initialInputs, onSave, onCancel,
 
         {step === 'assumptions' && (
           <>
-            <Field label="Vacancy Rate" hint="Expected percentage of time units are empty">
+            <Field label="Vacancy Rate" hint="Expected percentage of time units are empty" extracted={extractedFields.has('vacancyRate')}>
               <PctInput value={inputs.vacancyRate} onChange={v => set('vacancyRate', v)} />
             </Field>
-            <Field label="Annual Rent Growth">
+            <Field label="Annual Rent Growth" extracted={extractedFields.has('rentGrowthRate')}>
               <PctInput value={inputs.rentGrowthRate} onChange={v => set('rentGrowthRate', v)} />
             </Field>
-            <Field label="Annual Expense Growth">
+            <Field label="Annual Expense Growth" extracted={extractedFields.has('expenseGrowthRate')}>
               <PctInput value={inputs.expenseGrowthRate} onChange={v => set('expenseGrowthRate', v)} />
             </Field>
-            <Field label="Exit Cap Rate" hint="Expected cap rate when you sell">
+            <Field label="Exit Cap Rate" hint="Expected cap rate when you sell" extracted={extractedFields.has('exitCapRate')}>
               <PctInput value={inputs.exitCapRate} onChange={v => set('exitCapRate', v)} />
             </Field>
-            <Field label="Hold Period">
+            <Field label="Hold Period" extracted={extractedFields.has('holdPeriod')}>
               <NumberInput value={inputs.holdPeriod} onChange={v => set('holdPeriod', v)} suffix="years" />
             </Field>
             <Field label="Selling Cost Rate" hint="Broker commissions, transfer taxes, etc.">
