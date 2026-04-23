@@ -286,20 +286,47 @@ function FileImportModal({ onImport, onClose }: FileImportModalProps) {
   async function handleFile(file: File) {
     setError('');
     setImportNote('');
-
-    const LIMIT_MB = 4;
-    if (file.size > LIMIT_MB * 1024 * 1024) {
-      setError(`File is ${(file.size / 1024 / 1024).toFixed(1)} MB — max is ${LIMIT_MB} MB. For large PDFs, try compressing it or splitting out the financial pages.`);
-      return;
-    }
-
     setLoading(true);
+
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/deals/file-import', { method: 'POST', body: formData });
+      let res: Response;
+
+      if (isPdf) {
+        // Extract text in the browser — avoids any server-side file size limits
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        const pages: string[] = [];
+        for (let i = 1; i <= Math.min(pdf.numPages, 60); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items
+            .map(item => ('str' in item ? item.str : ''))
+            .join(' ')
+            .trim();
+          if (pageText) pages.push(pageText);
+        }
+        const text = pages.join('\n');
+        if (!text.trim()) {
+          throw new Error('No text found in this PDF. It may be a scanned image — try a text-based PDF.');
+        }
+
+        res = await fetch('/api/deals/file-import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append('file', file);
+        res = await fetch('/api/deals/file-import', { method: 'POST', body: formData });
+      }
+
       if (!res.ok) {
-        if (res.status === 413) throw new Error('File too large for the server. Try a smaller or compressed PDF.');
         const err = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? 'Import failed');
       }

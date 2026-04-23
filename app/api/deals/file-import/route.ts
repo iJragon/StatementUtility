@@ -4,54 +4,41 @@ import { getGroqClient, DEFAULT_MODEL } from '@/lib/agents/base';
 import type { DealInputs } from '@/lib/models/deal';
 import { DEFAULT_DEAL_INPUTS } from '@/lib/models/deal';
 import * as XLSX from 'xlsx';
-import * as pdfParseModule from 'pdf-parse';
-const pdfParse = (pdfParseModule as unknown as { default: (buf: Buffer) => Promise<{ text: string }> }).default ?? (pdfParseModule as unknown as (buf: Buffer) => Promise<{ text: string }>);
-
-// Raise Next.js's internal body size limit for this route (default is 1 MB)
-export const config = {
-  api: { bodyParser: { sizeLimit: '10mb' } },
-};
 
 // POST /api/deals/file-import
-// Accepts Excel, CSV, or PDF (OMs, pro formas, rent rolls) and uses AI to extract
-// deal underwriting inputs. Any field the AI cannot confidently extract is omitted.
+// Two code paths:
+//   application/json  → PDF text already extracted client-side; body = { text, isPdf }
+//   multipart/form-data → Excel or CSV file uploaded directly
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const formData = await req.formData();
-  const file = formData.get('file');
-  if (!file || !(file instanceof Blob)) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-  }
-
-  const fileName = file instanceof File ? file.name.toLowerCase() : '';
-  const isPdf = fileName.endsWith('.pdf') || file.type === 'application/pdf';
-
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const contentType = req.headers.get('content-type') ?? '';
   const rows: string[] = [];
+  let isPdf = false;
 
-  if (isPdf) {
-    try {
-      const data = await pdfParse(buffer);
-      const text = data.text ?? '';
-      if (!text.trim()) {
-        return NextResponse.json(
-          { error: 'Could not extract text from this PDF. It may be a scanned image — try a text-based PDF.' },
-          { status: 422 },
-        );
-      }
-      // Split into non-empty lines, cap at 400 lines to stay within token budget
-      const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
-      rows.push(...lines.slice(0, 400));
-    } catch {
+  if (contentType.includes('application/json')) {
+    // PDF text extracted in the browser — body is tiny text, no size issues
+    isPdf = true;
+    const body = await req.json() as { text?: string };
+    const text = body.text ?? '';
+    if (!text.trim()) {
       return NextResponse.json(
-        { error: 'Could not parse the PDF. Please try a different file.' },
+        { error: 'No text found in this PDF. It may be a scanned image — try a text-based PDF.' },
         { status: 422 },
       );
     }
+    const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+    rows.push(...lines.slice(0, 400));
   } else {
+    // Excel / CSV uploaded as multipart
+    const formData = await req.formData();
+    const file = formData.get('file');
+    if (!file || !(file instanceof Blob)) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+    const buffer = Buffer.from(await file.arrayBuffer());
     try {
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       for (const sheetName of workbook.SheetNames) {
@@ -65,7 +52,7 @@ export async function POST(req: NextRequest) {
       }
     } catch {
       return NextResponse.json(
-        { error: 'Could not parse file. Please upload an Excel (.xlsx, .xls), CSV, or PDF file.' },
+        { error: 'Could not parse file. Please upload an Excel (.xlsx, .xls) or CSV file.' },
         { status: 422 },
       );
     }
@@ -174,7 +161,6 @@ Rules:
     downPayment = extracted.purchasePrice * extracted.downPaymentPct;
   }
 
-  // Only include fields the AI actually extracted — let callers merge with defaults
   const inputs: Partial<DealInputs> = {};
   if (extracted.purchasePrice != null)       inputs.purchasePrice        = extracted.purchasePrice;
   if (downPayment != null && downPayment > 0) inputs.downPayment          = downPayment;
