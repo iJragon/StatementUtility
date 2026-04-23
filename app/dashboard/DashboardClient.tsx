@@ -1137,7 +1137,10 @@ export default function DashboardClient({ userEmail, initialHistory, initialProp
               )}
 
               {!isAnalyzing && !analysis && (
-                <div className="relative flex flex-col items-center justify-center h-full overflow-hidden rounded-lg">
+                <div
+                  className="relative flex flex-col items-center justify-center overflow-hidden"
+                  style={{ margin: '-1.5rem', height: 'calc(100% + 3rem)' }}
+                >
                   {/* Full-bleed animated background */}
                   <div className="absolute inset-0">
                     <NetworkAnimation />
