@@ -226,184 +226,206 @@ export default function DealView({
   return (
     <div className="flex flex-col h-full">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-semibold truncate" style={{ color: 'var(--text)' }}>
-                {deal.name}
-              </h2>
-              {deal.analysis?.score && (
-                <span
-                  className="shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold"
-                  style={{ backgroundColor: `${verdictColor}20`, color: verdictColor }}
-                >
-                  {deal.analysis.score.total}/100
-                </span>
-              )}
-              {/* Status badge + dropdown */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setShowStatusMenu(v => !v)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: `${currentStatus.color}18`, color: currentStatus.color, border: `1px solid ${currentStatus.color}30` }}
-                >
-                  {currentStatus.label}
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-                {showStatusMenu && (
-                  <div
-                    className="absolute left-0 top-full mt-1 rounded-lg shadow-lg z-20 overflow-hidden"
-                    style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', minWidth: 140 }}
-                  >
-                    {STATUS_OPTIONS.map(s => (
-                      <button
-                        key={s.value}
-                        onClick={() => handleStatusChange(s.value)}
-                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
-                        style={{ color: s.value === deal.status ? s.color : 'var(--text)' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                        {s.label}
-                        {s.value === deal.status && ' ✓'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            {deal.address && (
-              <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>{deal.address}</p>
-            )}
-            {/* Link to property / View in portfolio */}
-            {deal.propertyId && (
-              <button
-                onClick={() => onViewInPortfolio?.(deal.propertyId!)}
-                className="text-xs mt-0.5 flex items-center gap-1"
-                style={{ color: 'var(--accent)' }}
+      <div className="px-4 pt-3 border-b" style={{ borderColor: 'var(--border)' }}>
+
+        {/* Row 1: Deal name + My Profile */}
+        <div className="flex items-start justify-between gap-3 mb-0.5">
+          <h2 className="text-base font-bold leading-snug" style={{ color: 'var(--text)' }}>
+            {deal.name}
+          </h2>
+          <button
+            onClick={onShowProfile}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs shrink-0 transition-colors"
+            style={{ border: '1px solid var(--border)', color: 'var(--muted)', backgroundColor: 'var(--surface)' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)'; }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="8" r="4" /><path d="M6 20v-1a6 6 0 0112 0v1" />
+            </svg>
+            My Profile
+          </button>
+        </div>
+
+        {/* Row 2: Address */}
+        {deal.address && (
+          <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>{deal.address}</p>
+        )}
+
+        {/* Row 3: Status + score + portfolio chips */}
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          {/* Status dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatusMenu(v => !v)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium"
+              style={{ backgroundColor: `${currentStatus.color}15`, color: currentStatus.color, border: `1px solid ${currentStatus.color}35` }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: currentStatus.color }} />
+              {currentStatus.label}
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {showStatusMenu && (
+              <div
+                className="absolute left-0 top-full mt-1 rounded-lg shadow-lg z-20 overflow-hidden"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', minWidth: 140 }}
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-                View in Portfolio
-              </button>
+                {STATUS_OPTIONS.map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => handleStatusChange(s.value)}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center gap-2"
+                    style={{ color: s.value === deal.status ? s.color : 'var(--text)' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                    {s.label}
+                    {s.value === deal.status && (
+                      <svg className="ml-auto" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-            {/* Investor profile */}
-            <button
-              onClick={onShowProfile}
-              className="p-1.5 rounded"
-              style={{ border: '1px solid var(--border)', color: 'var(--muted)' }}
-              title="Investor Profile"
+          {/* Score chip */}
+          {deal.analysis?.score && (
+            <span
+              className="px-2 py-1 rounded-full text-xs font-semibold"
+              style={{ backgroundColor: `${verdictColor}15`, color: verdictColor, border: `1px solid ${verdictColor}35` }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="8" r="4" /><path d="M6 20v-1a6 6 0 0112 0v1" />
+              {deal.analysis.score.total}/100
+            </span>
+          )}
+
+          {/* Portfolio chip */}
+          {deal.propertyId && (
+            <button
+              onClick={() => onViewInPortfolio?.(deal.propertyId!)}
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors"
+              style={{ backgroundColor: 'rgba(34,197,94,0.10)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.25)' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.10)')}
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
               </svg>
+              In Portfolio
             </button>
+          )}
+        </div>
 
-            {/* Link to property */}
-            {hasAnalysis && (
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="px-2.5 py-1.5 text-xs rounded flex items-center gap-1"
-                style={{
-                  border: `1px solid ${deal.propertyId ? 'var(--success)' : 'var(--border)'}`,
-                  color: deal.propertyId ? 'var(--success)' : 'var(--muted)',
-                  backgroundColor: deal.propertyId ? 'rgba(34,197,94,0.06)' : 'var(--surface)',
-                }}
-                title={deal.propertyId ? 'Change property link' : 'Link to property'}
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-                </svg>
-                {deal.propertyId ? 'Linked' : 'Link'}
-              </button>
-            )}
-
+        {/* Action bar */}
+        <div className="flex items-center justify-between gap-2 pt-2.5 pb-3 border-t" style={{ borderColor: 'var(--border)' }}>
+          {/* Left: secondary actions */}
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setEditingInputs(true)}
-              className="px-2.5 py-1.5 text-xs rounded"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs transition-colors"
               style={{ border: '1px solid var(--border)', color: 'var(--text)', backgroundColor: 'var(--surface)' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
             >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
               Edit Inputs
             </button>
 
-            {hasInputs && (
-              <button
-                onClick={() => handleAnalyze()}
-                disabled={analyzing}
-                className="btn-primary px-2.5 py-1.5 text-xs"
-              >
-                {analyzing ? 'Analyzing…' : hasAnalysis ? 'Re-Analyze' : 'Analyze'}
-              </button>
-            )}
-
-            {/* Export */}
+            {/* ··· overflow menu: export + portfolio link */}
             {hasAnalysis && (
               <div className="relative" ref={exportMenuRef}>
                 <button
-                  onClick={() => setShowExportMenu(prev => !prev)}
-                  className="px-2.5 py-1.5 text-xs rounded flex items-center gap-1"
-                  style={{ border: '1px solid var(--border)', color: 'var(--text)', backgroundColor: 'var(--surface)' }}
+                  onClick={() => setShowExportMenu(v => !v)}
+                  className="flex items-center justify-center w-8 h-[30px] rounded text-xs transition-colors"
+                  style={{ border: '1px solid var(--border)', color: 'var(--muted)', backgroundColor: 'var(--surface)' }}
+                  title="More options"
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
                 >
-                  Export
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="6 9 12 15 18 9" />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+                    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+                    <circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none" />
                   </svg>
                 </button>
                 {showExportMenu && (
                   <div
-                    className="absolute right-0 top-full mt-1 rounded-lg shadow-lg overflow-hidden z-20"
-                    style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', minWidth: 150 }}
+                    className="absolute left-0 top-full mt-1 rounded-lg shadow-xl z-20 overflow-hidden"
+                    style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border)', minWidth: 175 }}
                   >
-                    {(['excel', 'pdf'] as const).map((fmt, i) => (
+                    <p className="px-3 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--muted)', fontSize: '0.6rem' }}>
+                      Export
+                    </p>
+                    {(['excel', 'pdf'] as const).map(fmt => (
                       <button
                         key={fmt}
                         onClick={() => handleExport(fmt)}
-                        className="w-full text-left px-4 py-2.5 text-xs"
-                        style={{ color: 'var(--text)', borderTop: i > 0 ? '1px solid var(--border)' : undefined }}
+                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5"
+                        style={{ color: 'var(--text)' }}
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        {fmt === 'excel' ? 'Excel (.xlsx)' : 'PDF'}
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--muted)' }}>
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        {fmt === 'excel' ? 'Excel (.xlsx)' : 'PDF Report'}
                       </button>
                     ))}
+                    <div className="my-1" style={{ borderTop: '1px solid var(--border)' }} />
+                    <button
+                      onClick={() => { setShowLinkModal(true); setShowExportMenu(false); }}
+                      className="w-full text-left px-3 py-2 mb-1 text-xs flex items-center gap-2.5"
+                      style={{ color: 'var(--text)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--muted)' }}>
+                        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                      {deal.propertyId ? 'Change Portfolio Link' : 'Add to Portfolio'}
+                    </button>
                   </div>
                 )}
               </div>
             )}
-
           </div>
+
+          {/* Right: primary action */}
+          {hasInputs && (
+            <button
+              onClick={() => handleAnalyze()}
+              disabled={analyzing}
+              className="btn-primary flex items-center gap-1.5 px-3.5 py-1.5 text-xs"
+            >
+              {analyzing ? (
+                <>
+                  <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 12a9 9 0 11-6.219-8.56" />
+                  </svg>
+                  {isStreaming ? 'Writing…' : 'Analyzing…'}
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  {hasAnalysis ? 'Re-Analyze' : 'Analyze Deal'}
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {error && (
-          <div className="mt-2 text-xs px-3 py-2 rounded alert-error">
-            {error}
-          </div>
-        )}
-        {analyzing && !isStreaming && (
-          <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: 'var(--accent)' }}>
-            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 12a9 9 0 11-6.219-8.56" />
-            </svg>
-            Running financial analysis…
-          </div>
-        )}
-        {analyzing && isStreaming && (
-          <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: 'var(--accent)' }}>
-            <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 12a9 9 0 11-6.219-8.56" />
-            </svg>
-            Generating AI narrative…
-          </div>
+          <div className="-mt-1 mb-3 text-xs px-3 py-2 rounded alert-error">{error}</div>
         )}
       </div>
 
