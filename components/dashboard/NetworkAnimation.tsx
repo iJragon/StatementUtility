@@ -125,14 +125,14 @@ export default function NetworkAnimation({ className }: { className?: string }) 
       star: 'rgba(200,220,255,',
     };
     const L = {
-      skyTop: '#d2e3f6', skyBot: '#e8f1fb',
-      gnd: ['rgba(152,180,228,0.28)', 'rgba(128,158,214,0.14)'],
-      gndLine: 'rgba(50,100,210,0.26)',
-      bFill:  ['rgba(126,152,200,', 'rgba(66,96,170,',  'rgba(32,57,132,'],
-      win:    ['rgba(46,86,178,',   'rgba(26,66,168,',  'rgba(16,50,158,'],
-      wire:   ['rgba(62,116,218,',  'rgba(36,96,208,',  'rgba(16,80,198,'],
-      pulse:  ['rgba(16,66,198,',   'rgba(6,56,188,',   'rgba(0,46,178,'],
-      vig: 'rgba(215,230,248,',
+      skyTop: '#aec8e8', skyBot: '#c8dff5',
+      gnd: ['rgba(60,100,175,0.60)', 'rgba(40,80,158,0.45)'],
+      gndLine: 'rgba(40,90,200,0.55)',
+      bFill:  ['rgba(100,130,185,', 'rgba(55,85,155,',  'rgba(28,52,120,'],
+      win:    ['rgba(200,220,255,',  'rgba(180,210,255,', 'rgba(160,200,255,'],
+      wire:   ['rgba(50,110,220,',   'rgba(30,90,210,',   'rgba(14,72,200,'],
+      pulse:  ['rgba(20,70,210,',    'rgba(10,58,200,',   'rgba(0,44,185,'],
+      vig: 'rgba(255,255,255,',
       star: '',
     };
 
@@ -340,7 +340,7 @@ export default function NetworkAnimation({ className }: { className?: string }) 
       }
 
       const hy     = H * 0.72;
-      const ALPHAS = dk ? [0.72, 0.87, 1.0] : [0.50, 0.70, 0.92];
+      const ALPHAS = dk ? [0.72, 0.87, 1.0] : [0.68, 0.85, 1.0];
 
       drawSky(dk, now);
       drawGround(dk, hy);
